@@ -1,0 +1,29 @@
+{
+  "name": "capsules",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "deploy-local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy-rinkeby": "hardhat run scripts/deploy.js --network rinkeby",
+    "deploy-kovan": "hardhat run scripts/deploy.js --network kovan",
+    "deploy-mainnet": "hardhat run scripts/deploy.js --network mainnet"
+  },
+  "dependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.3.6",
+    "ethereum-waffle": "^3.4.0",
+    "ethereumjs-wallet": "^1.0.1",
+    "ethers": "^5.4.0"
+  },
+  "devDependencies": {
+    "@nomiclabs/hardhat-etherscan": "^3.0.1",
+    "@openzeppelin/contracts": "4.5.0",
+    "chalk": "^4.1.1",
+    "fs": "^0.0.1-security",
+    "hardhat": "^2.4.1",
+    "hardhat-deploy": "^0.8.9",
+    "hardhat-deploy-ethers": "^0.3.0-beta.10",
+    "sol-merger": "^3.1.0"
+  }
+}
