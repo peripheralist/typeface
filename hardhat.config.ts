@@ -1,9 +1,10 @@
-require("@nomiclabs/hardhat-etherscan");
-require("@nomiclabs/hardhat-waffle");
-require("hardhat-deploy");
-require("hardhat-deploy-ethers");
-
-const fs = require("fs");
+import "hardhat-deploy";
+import "hardhat-deploy-ethers";
+import "hardhat-contract-sizer";
+import "@typechain/hardhat";
+import "@nomiclabs/hardhat-ethers";
+import "@nomiclabs/hardhat-waffle";
+import * as fs from "fs";
 
 function mnemonic() {
   try {
@@ -29,13 +30,13 @@ module.exports = {
   networks: {
     hardhat: {
       chainId: 1337,
-      accounts: [
-        {
-          privateKey:
-            "c6cbd7d76bc5baca530c875663711b947efa6a86a900a9e8645ce32e5821484e",
-          balance: "100000000000000000000000",
-        },
-      ],
+      // accounts: [
+      //   {
+      //     privateKey:
+      //       "c6cbd7d76bc5baca530c875663711b947efa6a86a900a9e8645ce32e5821484e",
+      //     balance: "100000000000000000000000",
+      //   },
+      // ],
     },
     localhost: {
       url: "http://localhost:8545",
@@ -83,6 +84,12 @@ module.exports = {
     artifacts: "./artifacts",
   },
   mocha: {
-    timeout: 200000,
+    timeout: 6000000,
+  },
+  typechain: {
+    outDir: "typechain-types",
+    target: "ethers-v5",
+    alwaysGenerateOverloads: false, // should overloads with full signatures like deposit(uint256) be generated always, even if there are no overloads?
+    // externalArtifacts: ["externalArtifacts/*.json"], // optional array of glob patterns with external artifacts to process (for example external libs from node_modules)
   },
 };

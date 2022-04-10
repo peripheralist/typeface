@@ -1,12 +1,17 @@
 /* eslint no-use-before-define: "warn" */
-const { ethers } = require("hardhat");
-const chalk = require("chalk");
-const fs = require("fs");
-const { BigNumber } = require("ethers");
+// const { ethers } = require("hardhat");
+// const chalk = require("chalk");
+// const fs = require("fs");
+// const { BigNumber } = require("ethers");
+
+import { ethers } from "hardhat";
+import * as chalk from "chalk";
+import * as fs from "fs";
+import { BigNumber } from "ethers";
 
 const network = process.env.HARDHAT_NETWORK;
 
-const deploy = async (args, owner) => {
+const deploy = async (args: any[], owner: string) => {
   const [deployer] = await ethers.getSigners();
 
   console.log("Deploying contracts with the account:", deployer.address);
@@ -77,7 +82,7 @@ const tilesAddresses = {
 };
 
 const main = async () => {
-  const network = process.env.HARDHAT_NETWORK;
+  const network = process.env.HARDHAT_NETWORK as keyof typeof projectIds;
   const projectId = projectIds[network];
   const terminalDirectory = terminalDirectories[network];
   const tilesAddress = tilesAddresses[network];
