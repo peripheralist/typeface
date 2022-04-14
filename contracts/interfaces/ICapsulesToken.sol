@@ -14,7 +14,6 @@ interface ICapsulesToken is IERC721Enumerable {
     event SetFriend(address friend, uint256 number);
     event SetText(uint256 id, bytes16[8] text);
     event SetTextEditFee(uint256 fee);
-    event SetDelegateVote(uint256 id, address delegate);
     event Withdraw(address to, uint256 amount);
     event WithdrawCreatorFee(address to, uint256 amount);
 
@@ -32,13 +31,9 @@ interface ICapsulesToken is IERC721Enumerable {
 
     function tokensOfOwner(address) external view returns (uint256[] memory);
 
-    function isDelegate(address _address) external view returns (bool);
-
     function setText(uint256 capsuleId, bytes16[8] calldata text)
         external
         payable;
-
-    function setDelegateVote(uint256 capsuleId, address delegate) external;
 
     function mint(bytes3 color, bytes16[8] calldata text)
         external

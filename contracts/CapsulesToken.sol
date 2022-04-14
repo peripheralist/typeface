@@ -13,6 +13,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "./Delegate721Enumerable.sol";
 import "./Base64.sol";
 import "./interfaces/ICapsulesAuctionHouse.sol";
 import "./interfaces/ICapsulesToken.sol";
@@ -20,7 +21,7 @@ import "./interfaces/ITypeface.sol";
 
 contract CapsulesToken is
     ICapsulesToken,
-    ERC721Enumerable,
+    Delegate721Enumerable,
     ReentrancyGuard,
     Pausable,
     Ownable
@@ -32,6 +33,12 @@ contract CapsulesToken is
     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     */
+
+    /// @notice Require that the value sent is at least MINT_PRICE
+    modifier onlyAfterMintComplete() {
+        require(mintedCount >= primarySupply, "Mint has not completed");
+        _;
+    }
 
     /// @notice Require that the value sent is at least MINT_PRICE
     modifier requireMintPrice() {
@@ -92,12 +99,6 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the sender is the delegate
-    modifier onlyDelegate() {
-        require(isDelegate(msg.sender), "Sender is not the Delegate");
-        _;
-    }
-
     /*
     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -112,7 +113,13 @@ contract CapsulesToken is
         address _auctionHouse,
         address _creatorFeeReceiver,
         bytes3[] memory _auctionColors
-    ) ERC721("Capsules", "CAPS") {
+    )
+        Delegate721Enumerable(
+            "Capsules",
+            "CAPS",
+            MAX_SUPPLY - auctionColors.length
+        )
+    {
         textEditFee = _textEditFee;
         capsulesTypeface = ITypeface(_capsulesTypeface);
         auctionHouse = ICapsulesAuctionHouse(_auctionHouse);
@@ -167,9 +174,6 @@ contract CapsulesToken is
 
     /// Text of a token id
     mapping(uint256 => bytes16[8]) public textOf;
-
-    /// Delegate vote of a token id
-    mapping(uint256 => address) public delegateVoteOf;
 
     /// Address to receive fees
     address public creatorFeeReceiver;
@@ -387,25 +391,6 @@ contract CapsulesToken is
             );
     }
 
-    /// @notice Returns true if address has >50% of current delegate votes
-    /// @dev Primary mint must complete before delegate is recognized
-    /// @param _address address to check delegate status for
-    function isDelegate(address _address) public view returns (bool) {
-        // We use `mintedCount` instead of `totalSupply()` to allow for burning tokens, which reduce `totalSupply()`
-        if (mintedCount < primarySupply()) return false;
-
-        uint256 voteCount = 0;
-
-        // Tally votes from all Capsules
-        for (uint256 i; i < totalSupply(); i++) {
-            if (delegateVoteOf[i] == _address) voteCount++;
-            // `_address` has >50% of votes
-            if (voteCount > (totalSupply() / 2)) return true;
-        }
-
-        return false;
-    }
-
     /// @notice Get IDs for all Capsule tokens owned by wallet
     /// @param owner address to get token IDs for
     function tokensOfOwner(address owner)
@@ -563,7 +548,12 @@ contract CapsulesToken is
 
     /// @notice Allows Delegate to withdraw ETH
     /// @param amount amount of ETH to withdraw
-    function withdraw(uint256 amount) external onlyDelegate nonReentrant {
+    function withdraw(uint256 amount)
+        external
+        onlyDelegate
+        onlyAfterMintComplete
+        nonReentrant
+    {
         payable(msg.sender).transfer(amount);
 
         emit Withdraw(msg.sender, amount);
@@ -573,8 +563,9 @@ contract CapsulesToken is
     /// @param _textEditFee new textEditFee
     function setTextEditFee(uint256 _textEditFee)
         external
-        nonReentrant
         onlyDelegate
+        onlyAfterMintComplete
+        nonReentrant
     {
         textEditFee = _textEditFee;
 
@@ -633,14 +624,9 @@ contract CapsulesToken is
     :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     */
 
-    /// @notice Number of Capsules that can be minted outside of auction
-    function primarySupply() internal view returns (uint256) {
-        return MAX_SUPPLY - auctionColors.length;
-    }
-
     /// @notice Max ETH fee that can be withdrawn to creator
     function maxCreatorFee() internal view returns (uint256) {
-        return (primarySupply() * MINT_PRICE) / 2;
+        return (primarySupply * MINT_PRICE) / 2;
     }
 
     /// @notice Resets delegate vote of Capsule before token is transferred
@@ -651,15 +637,6 @@ contract CapsulesToken is
     ) internal override(ERC721Enumerable) {
         _setDelegateVote(capsuleId, address(0));
         super._beforeTokenTransfer(from, to, capsuleId);
-    }
-
-    /// @notice Updates delegate vote for Capsule
-    /// @param capsuleId id of Capsule token
-    /// @param delegate address of Delegate to vote for
-    function _setDelegateVote(uint256 capsuleId, address delegate) internal {
-        delegateVoteOf[capsuleId] = delegate;
-
-        emit SetDelegateVote(capsuleId, delegate);
     }
 
     /// @notice Mints Capsule
