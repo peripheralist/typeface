@@ -1,39 +1,25 @@
 /* eslint no-use-before-define: "warn" */
-// const { ethers } = require("hardhat");
-// const chalk = require("chalk");
-// const fs = require("fs");
-// const { BigNumber } = require("ethers");
-
+import chalk from "chalk";
+import { keccak256 } from "ethers/lib/utils";
+import fs from "fs";
 import { ethers } from "hardhat";
-import * as chalk from "chalk";
-import * as fs from "fs";
-import { BigNumber } from "ethers";
+
+import { fonts } from "../fonts";
+import { reservedColors } from "../reservedColors";
+import { CapsulesToken, CapsulesTypeface } from "../typechain-types";
 
 const network = process.env.HARDHAT_NETWORK;
+// const ownerAddress = "0x63A2368F4B509438ca90186cb1C15156713D5834";
+const ownerAddress = "0x817738DC393d682Ca5fBb268707b99F2aAe96baE";
+const feeReceiverAddress = "0x63A2368F4B509438ca90186cb1C15156713D5834";
 
-const deploy = async (args: any[], owner: string) => {
-  const [deployer] = await ethers.getSigners();
+const getDeployer = async () => (await ethers.getSigners())[0];
 
-  console.log("Deploying contracts with the account:", deployer.address);
-
-  console.log("Deploying with args:", args);
-
-  const factory = await ethers.getContractFactory("Dreams");
-
-  console.log("Got factory");
-
-  const deployed = await factory.deploy(...args);
-  await deployed.deployTransaction.wait();
-
-  console.log("Deployed...");
-
-  const attached = factory.attach(deployed.address);
-
-  console.log("Setting new owner:", owner);
-  await attached.transferOwnership(owner);
-
-  const contractName = "Dreams";
-
+const writeFiles = (
+  contractName: string,
+  contractAddress: string,
+  args: string[]
+) => {
   const contract = JSON.parse(
     fs
       .readFileSync(
@@ -43,73 +29,125 @@ const deploy = async (args: any[], owner: string) => {
   );
 
   fs.writeFileSync(
-    `deployments/${network}/${contractName}.sol.address`,
-    deployed.address
+    `deployments/${network}/${contractName}.json`,
+    `{
+      "address": "${contractAddress}", 
+      "abi": ${JSON.stringify(contract.abi, null, 2)}
+  }`
   );
 
   fs.writeFileSync(
-    `deployments/${network}/${contractName}.abi.js`,
-    `module.exports = ${JSON.stringify(contract.abi, null, 2)};`
-  );
-
-  fs.writeFileSync(
-    `deployments/${network}/arguments.js`,
-    `module.exports = ${JSON.stringify(args, null, 2)};`
-  );
-
-  console.log(
-    chalk.green("   Done!"),
-    "Deployed at:",
-    chalk.magenta(deployed.address)
-  );
-
-  return deployed;
-};
-
-const projectIds = {
-  mainnet: 2, // Juicebox project https://juicebox.money/#/p/tiles
-  rinkeby: 423, // Juicebox project https://rinkeby.juicebox.money/#/p/drm
-};
-
-const terminalDirectories = {
-  mainnet: "0x46C9999A2EDCD5aA177ed7E8af90c68b7d75Ba46",
-  rinkeby: "0x88d8c9E98E6EdE75252c2473abc9724965fe7474",
-};
-
-const tilesAddresses = {
-  mainnet: "0x64931F06d3266049Bf0195346973762E6996D764",
-  rinkeby: "0x64931F06d3266049Bf0195346973762E6996D764",
-};
-
-const main = async () => {
-  const network = process.env.HARDHAT_NETWORK as keyof typeof projectIds;
-  const projectId = projectIds[network];
-  const terminalDirectory = terminalDirectories[network];
-  const tilesAddress = tilesAddresses[network];
-  const baseURI = "https://dreamland.tiles.art/";
-  const owner = "0x63A2368F4B509438ca90186cb1C15156713D5834";
-
-  await deploy(
-    [
-      BigNumber.from(projectId).toHexString(),
-      terminalDirectory,
-      tilesAddress,
-      baseURI,
-    ],
-    owner
+    `deployments/${network}/${contractName}.arguments.js`,
+    `module.exports = [${args}];`
   );
 
   console.log(
     "⚡️ All contract artifacts saved to:",
-    chalk.yellow("packages/hardhat/artifacts/"),
+    chalk.yellow(`deployments/${network}/${contractName}`),
     "\n"
+  );
+};
+
+const deployCapsulesTypeface = async (
+  capsulesTokenAddress: string
+): Promise<CapsulesTypeface> => {
+  const deployer = await getDeployer();
+  const _fonts = Object.keys(fonts).map((weight) => ({
+    weight: parseInt(weight) as keyof typeof fonts,
+    style: "normal",
+  }));
+  const hashes = Object.values(fonts).map((font) =>
+    keccak256(Buffer.from(font))
   );
 
-  console.log(
-    chalk.green(" ✔ Deployed for network:"),
-    process.env.HARDHAT_NETWORK,
-    "\n"
+  console.log("Deploying CapsulesTypeface with the account:", deployer.address);
+
+  const args = [_fonts, hashes, capsulesTokenAddress];
+
+  console.log("Deploying with args:", args);
+
+  const CapsulesTypefaceFactory = await ethers.getContractFactory(
+    "CapsulesTypeface"
   );
+  const capsulesTypeface = (await CapsulesTypefaceFactory.deploy(
+    ...args
+  )) as CapsulesTypeface;
+
+  console.log(
+    chalk.green(` ✔ CapsulesTypeface deployed for network:`),
+    process.env.HARDHAT_NETWORK,
+    "\n",
+    chalk.magenta(capsulesTypeface.address),
+    `tx: ${capsulesTypeface.deployTransaction.hash}`
+  );
+
+  writeFiles(
+    "CapsulesTypeface",
+    capsulesTypeface.address,
+    args.map((a) => JSON.stringify(a))
+  );
+
+  return capsulesTypeface;
+};
+
+const deployCapsulesToken = async (
+  capsulesTypefaceAddress: string
+): Promise<CapsulesToken> => {
+  const deployer = await getDeployer();
+  console.log("Deploying CapsulesToken with the account:", deployer.address);
+
+  const royalty = 50;
+
+  const args = [
+    capsulesTypefaceAddress,
+    feeReceiverAddress,
+    reservedColors,
+    royalty,
+  ];
+
+  const Capsules = await ethers.getContractFactory("CapsulesToken");
+
+  const capsulesToken = (await Capsules.deploy(...args)) as CapsulesToken;
+
+  console.log(
+    chalk.green(` ✔ CapsulesToken deployed for network:`),
+    process.env.HARDHAT_NETWORK,
+    "\n",
+    chalk.magenta(capsulesToken.address),
+    `tx: ${capsulesToken.deployTransaction.hash}`
+  );
+
+  writeFiles(
+    "CapsulesToken",
+    capsulesToken.address,
+    args.map((a) => JSON.stringify(a))
+  );
+
+  await capsulesToken.transferOwnership(ownerAddress);
+
+  console.log(
+    "Transferred CapsulesToken ownership to " + chalk.bold(ownerAddress)
+  );
+
+  return capsulesToken;
+};
+
+const main = async () => {
+  const deployer = await getDeployer();
+  const nonce = await deployer.getTransactionCount();
+  const nonceOffset = 1;
+  const expectedCapsulesTokenAddress = ethers.utils.getContractAddress({
+    from: deployer.address,
+    nonce: nonce + nonceOffset,
+  });
+
+  const capsulesTypeface = await deployCapsulesTypeface(
+    expectedCapsulesTokenAddress
+  );
+
+  await deployCapsulesToken(capsulesTypeface.address);
+
+  console.log("Done");
 };
 
 main()

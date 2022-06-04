@@ -1,30 +1,20 @@
 import chalk from "chalk";
-import { BigNumber, constants, Contract, Signer } from "ethers";
-import { keccak256, parseEther } from "ethers/lib/utils";
+import { BigNumber, Contract, Signer } from "ethers";
+import { keccak256 } from "ethers/lib/utils";
 import * as fs from "fs";
 import { ethers } from "hardhat";
 
-import { CapsulesToken, CapsulesTypeface, Typeface } from "../typechain-types";
-import { CapsulesAuctionHouse } from "../typechain-types/CapsulesAuctionHouse";
-import { auctionHouseAddress, capsulesAddress } from "./Capsules";
-import { fonts } from "./fonts";
-import { ITypeface } from "../typechain-types/ITypeface";
+import { fonts } from "../fonts";
+import { reservedColors } from "../reservedColors";
+import { CapsulesToken } from "../typechain-types";
+import { CapsulesTypeface } from "../typechain-types/CapsulesTypeface";
+import { capsulesToken, capsulesTypeface } from "./Capsules";
 
-export const mintPrice = ethers.utils.parseEther("0.1");
-export const auctionColors = [
-  "0xff0000",
-  "0x00ff00",
-  "0x0000ff",
-  "0x00ffff",
-  "0xffff00",
-  "0xff00ff",
-  "0xffffff",
-];
-export const initialSupply = 7950;
-export const maxSupply = initialSupply + auctionColors.length;
+export const mintPrice = ethers.utils.parseEther("0.02");
+
+export const maxSupply = 7957;
 
 export const totalSupply = async () => await capsulesContract().totalSupply();
-export const mintedCount = async () => await capsulesContract().mintedCount();
 
 export const indent = "      " + chalk.bold("- ");
 
@@ -103,7 +93,7 @@ export async function mintValidCapsules(signer: Signer, count?: number) {
   const skip = (await capsules.totalSupply()).toNumber();
 
   const validHexes = hexes
-    .filter((h) => !auctionColors.includes(h))
+    .filter((h) => !reservedColors.includes(h))
     .slice(skip);
 
   const _count =
@@ -116,7 +106,7 @@ export async function mintValidCapsules(signer: Signer, count?: number) {
 
   for (let i = 0; i < _count; i++) {
     await capsules
-      .mint(validHexes[i], emptyNote, {
+      .mint(validHexes[i], emptyNote, 400, {
         value: mintPrice,
         gasLimit: 30000000,
       })
@@ -132,14 +122,14 @@ export async function mintValidCapsules(signer: Signer, count?: number) {
 }
 
 export async function wallets() {
-  const [deployer, owner, feeReceiver, minter1, minter2, delegate] =
+  const [deployer, owner, feeReceiver, minter1, minter2, friend1] =
     await ethers.getSigners();
 
-  return { deployer, owner, feeReceiver, minter1, minter2, delegate };
+  return { deployer, owner, feeReceiver, minter1, minter2, friend1 };
 }
 
 export async function deployCapsulesTypeface() {
-  const CapsulesTypeface = await ethers.getContractFactory("CapsulesTypeface");
+  const { deployer } = await wallets();
 
   const _fonts = Object.keys(fonts).map((weight) => ({
     weight: parseInt(weight) as keyof typeof fonts,
@@ -149,31 +139,25 @@ export async function deployCapsulesTypeface() {
     keccak256(Buffer.from(font))
   );
 
-  console.log("fonts", _fonts, hashes);
+  console.log("fonts", { _fonts, hashes });
 
-  const capsulesTypeface = (await CapsulesTypeface.deploy(_fonts, hashes, {
-    gasLimit: 30000000,
-  })) as ITypeface;
+  const nonce = await deployer.getTransactionCount();
+  const nonceOffset = 1;
+  const expectedCapsulesTokenAddress = ethers.utils.getContractAddress({
+    from: deployer.address,
+    nonce: nonce + nonceOffset,
+  });
+
+  const CapsulesTypeface = await ethers.getContractFactory("CapsulesTypeface");
+  const capsulesTypeface = (await CapsulesTypeface.deploy(
+    _fonts,
+    hashes,
+    expectedCapsulesTokenAddress
+  )) as CapsulesTypeface;
 
   const x = await capsulesTypeface.deployTransaction.wait();
   const price = 50 * 0.000000001;
   console.log("deploy", x.gasUsed.toNumber() * price);
-
-  for (let i = 0; i < _fonts.length; i++) {
-    const weight = _fonts[i].weight;
-
-    console.log(
-      weight,
-      (
-        await (
-          await capsulesTypeface.setFontSrc(
-            _fonts[i],
-            Buffer.from(fonts[weight])
-          )
-        ).wait()
-      ).gasUsed.toNumber() * price
-    );
-  }
 
   console.log(
     indent +
@@ -185,23 +169,16 @@ export async function deployCapsulesTypeface() {
 }
 
 export async function deployCapsulesToken(capsulesTypefaceAddress: string) {
-  const { deployer, feeReceiver, owner } = await wallets();
+  const { feeReceiver, owner } = await wallets();
   const Capsules = await ethers.getContractFactory("CapsulesToken");
 
-  const nonce = await deployer.getTransactionCount();
-  const AUCTION_HOUSE_NONCE_OFFSET = 2;
-
-  const expectedAuctionHouseAddress = ethers.utils.getContractAddress({
-    from: deployer.address,
-    nonce: nonce + AUCTION_HOUSE_NONCE_OFFSET,
-  });
+  const royalty = 50;
 
   const capsules = (await Capsules.deploy(
-    parseEther("0.01").toHexString(),
     capsulesTypefaceAddress,
-    expectedAuctionHouseAddress,
     feeReceiver.address,
-    auctionColors
+    reservedColors,
+    royalty
   )) as CapsulesToken;
 
   await capsules.transferOwnership(owner.address);
@@ -213,30 +190,9 @@ export async function deployCapsulesToken(capsulesTypefaceAddress: string) {
   return capsules;
 }
 
-export async function deployCapsulesAuctionHouse(capsulesAddress: string) {
-  const AuctionHouse = await ethers.getContractFactory("CapsulesAuctionHouse");
-
-  const auctionHouse = (await AuctionHouse.deploy(
-    capsulesAddress,
-    constants.AddressZero, // Does not test WETH functionality
-    180, // 3 min
-    parseEther("0.1"),
-    5,
-    60 * 60 * 24
-  )) as CapsulesAuctionHouse;
-
-  console.log(
-    indent +
-      "Deployed CapsulesAuctionHouse " +
-      chalk.magenta(auctionHouse.address)
-  );
-
-  return auctionHouse;
-}
-
 export const capsulesContract = (signer?: Signer) =>
   new Contract(
-    capsulesAddress,
+    capsulesToken.address,
     JSON.parse(
       fs
         .readFileSync(
@@ -247,15 +203,15 @@ export const capsulesContract = (signer?: Signer) =>
     signer ?? ethers.provider
   ) as CapsulesToken;
 
-export const auctionHouseContract = (signer?: Signer) =>
+export const capsulesTypefaceContract = (signer?: Signer) =>
   new Contract(
-    auctionHouseAddress,
+    capsulesTypeface.address,
     JSON.parse(
       fs
         .readFileSync(
-          "./artifacts/contracts/CapsulesAuctionHouse.sol/CapsulesAuctionHouse.json"
+          "./artifacts/contracts/CapsulesTypeface.sol/CapsulesTypeface.json"
         )
         .toString()
     ).abi,
     signer ?? ethers.provider
-  ) as CapsulesAuctionHouse;
+  ) as CapsulesTypeface;

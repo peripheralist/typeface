@@ -2,43 +2,32 @@
 
 /// @title Capsules Token
 /// @author peri
-/// @notice Each Capsule token has a unique color, custom text rendered as a SVG, and a single vote for a Delegate address. The text and Delegate vote for a Capsule can be updated at any time by its owner. The address with >50% of Delegate votes has permission to withdraw fees earned from the primary mint, change the fee for editing Capsule texts, and initiate and manage the auction of reserved Capsules.
+/// @notice Each Capsule token has a unique color and a custom text rendered as a SVG. The text for a Capsule can be updated at any time by its owner.
 /// @dev bytes3 type is used to store the 3 bytes of the rgb hex-encoded color that is unique to each capsule.
 
-pragma solidity 0.8.12;
+pragma solidity 0.8.14;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "./Delegate721Enumerable.sol";
-import "./Base64.sol";
-import "./interfaces/ICapsulesAuctionHouse.sol";
+import "./ERC721A.sol";
 import "./interfaces/ICapsulesToken.sol";
 import "./interfaces/ITypeface.sol";
+import "./utils/Base64.sol";
 
 contract CapsulesToken is
     ICapsulesToken,
-    Delegate721Enumerable,
-    ReentrancyGuard,
+    ERC721A,
+    IERC2981,
+    Ownable,
     Pausable,
-    Ownable
+    ReentrancyGuard
 {
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    MODIFIERS
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
-
-    /// @notice Require that the value sent is at least MINT_PRICE
-    modifier onlyAfterMintComplete() {
-        require(mintedCount >= primarySupply, "Mint has not completed");
-        _;
-    }
+    /* -------------------------------------------------------------------------- */
+    /* -------------------------------- MODIFIERS ------------------------------- */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Require that the value sent is at least MINT_PRICE
     modifier requireMintPrice() {
@@ -49,18 +38,15 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the value sent is at least textEditFee
-    modifier requireSetTextPrice() {
-        require(
-            msg.value >= textEditFee,
-            "Ether value sent is below cost to set text"
-        );
+    /// @notice Require that the text is valid
+    modifier onlyValidText(bytes16[8] calldata text) {
+        require(_isValidText(text), "Invalid text");
         _;
     }
 
     /// @notice Require that the text is valid
-    modifier onlyValidText(bytes16[8] calldata text) {
-        require(_isValidText(text), "Invalid text");
+    modifier onlyValidFontWeight(uint256 fontWeight) {
+        require(_isValidFontWeight(fontWeight), "Invalid font weight");
         _;
     }
 
@@ -70,17 +56,30 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the color is not minted
-    modifier onlyUnmintedColor(bytes3 color) {
-        require(tokenOfColor[color] == 0, "Color already minted");
+    /// @notice Require that the color is not reserved
+    modifier onlyUnreservedColor(bytes3 color) {
+        require(!_isReservedColor(color), "Color reserved");
         _;
     }
 
-    /// @notice Require that the color is not reserved for auction
-    modifier onlyNotAuctionColor(bytes3 color) {
-        for (uint256 i; i < auctionColors.length; i++) {
-            if (auctionColors[i] == color) revert("Color reserved for auction");
-        }
+    /// @notice Require that the sender is the Capsules Typeface contract
+    modifier onlyCapsulesTypeface() {
+        require(
+            msg.sender == capsulesTypeface,
+            "Caller is not the Capsules Typeface"
+        );
+        _;
+    }
+
+    /// @notice Require that the color is valid
+    modifier onlyClaimable() {
+        require(claimCount[msg.sender] >= 1, "No claimable tokens");
+        _;
+    }
+
+    /// @notice Require that the color is not minted
+    modifier onlyUnmintedColor(bytes3 color) {
+        require(tokenOfColor[color] == 0, "Color already minted");
         _;
     }
 
@@ -90,81 +89,37 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the sender is the minter
-    modifier onlyAuctionHouse() {
-        require(
-            msg.sender == address(auctionHouse),
-            "Sender is not the Auction House"
-        );
-        _;
-    }
-
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    CONSTRUCTOR
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
+    /* -------------------------------------------------------------------------- */
+    /* ------------------------------- CONSTRUCTOR ------------------------------ */
+    /* -------------------------------------------------------------------------- */
 
     constructor(
-        uint256 _textEditFee,
         address _capsulesTypeface,
-        address _auctionHouse,
         address _creatorFeeReceiver,
-        bytes3[] memory _auctionColors
-    )
-        Delegate721Enumerable(
-            "Capsules",
-            "CAPS",
-            MAX_SUPPLY - auctionColors.length
-        )
-    {
-        textEditFee = _textEditFee;
-        capsulesTypeface = ITypeface(_capsulesTypeface);
-        auctionHouse = ICapsulesAuctionHouse(_auctionHouse);
+        bytes3[] memory _reservedColors,
+        uint256 _royalty
+    ) ERC721A("Capsules", "CAPS") {
+        capsulesTypeface = _capsulesTypeface;
         creatorFeeReceiver = _creatorFeeReceiver;
-
-        for (uint256 i; i < _auctionColors.length; i++) {
-            require(_isValidColor(_auctionColors[i]), "Invalid auction color");
-        }
-
-        auctionColors = _auctionColors;
+        reservedColors = _reservedColors;
+        emit SetReservedColors(_reservedColors);
+        royalty = _royalty;
 
         _pause();
     }
 
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    VARIABLES
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
-
-    /// The total number of valid colors
-    uint256 public constant MAX_SUPPLY = 7957;
+    /* -------------------------------------------------------------------------- */
+    /* -------------------------------- VARIABLES ------------------------------- */
+    /* -------------------------------------------------------------------------- */
 
     /// Price to mint a Capsule
-    uint256 public constant MINT_PRICE = 1e17; // 0.1 ETH
+    uint256 public constant MINT_PRICE = 2e16; // 0.02 ETH
 
-    /// Mapping of addresses to number of allowed mints
-    mapping(address => uint256) public friendsList;
-
-    /// Number of minted capsules
-    uint256 public mintedCount;
-
-    /// List of colors reserved for auction
-    bytes3[] public auctionColors;
+    /// Mapping of addresses to number of tokens that can be claimed
+    mapping(address => uint256) public claimCount;
 
     /// Capsules typeface address
-    ITypeface public immutable capsulesTypeface;
-
-    /// Auction house address
-    ICapsulesAuctionHouse public auctionHouse;
-
-    /// Fee required to edit text for a Capsule token
-    uint256 public textEditFee;
+    address public immutable capsulesTypeface;
 
     /// Color for a token id
     mapping(uint256 => bytes3) public colorOf;
@@ -175,19 +130,21 @@ contract CapsulesToken is
     /// Text of a token id
     mapping(uint256 => bytes16[8]) public textOf;
 
+    /// Font weight of a token id
+    mapping(uint256 => uint256) public fontWeightOf;
+
+    /// Array of reserved colors
+    bytes3[] reservedColors;
+
     /// Address to receive fees
     address public creatorFeeReceiver;
 
-    /// Amount of fee withdrawn to `feeReceiver`
-    uint256 public creatorFeeWithdrawn = 0;
+    /// Royalty amount out of 1000
+    uint256 public royalty;
 
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    EXTERNAL FUNCTIONS
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
+    /* -------------------------------------------------------------------------- */
+    /* --------------------------- EXTERNAL FUNCTIONS --------------------------- */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Return placeholder image for a Capsule
     /// @param capsuleId id of Capsule token
@@ -197,47 +154,47 @@ contract CapsulesToken is
         returns (string memory image)
     {
         bytes16[8] memory text;
-        text[0] = bytes16(
-            abi.encodePacked("Capsule ", Strings.toString(capsuleId))
-        );
+        text[0] = bytes16("CAPSULE");
         text[1] = bytes16(
-            abi.encodePacked("Color  #", _bytes3ToHexColor(colorOf[capsuleId]))
+            abi.encodePacked("#", _bytes3ToHexChars(colorOf[capsuleId]))
         );
 
-        image = imageOf(capsuleId, text);
+        image = imageFor(colorOf[capsuleId], text, fontWeightOf[capsuleId]);
     }
 
     /// @notice Return base64 encoded SVG for Capsule
-    /// @param capsuleId id of Capsule token
+    /// @param color color of Capsule token
     /// @param text text to render in image
-    function imageOf(uint256 capsuleId, bytes16[8] memory text)
-        public
-        view
-        returns (string memory image)
-    {
-        require(_exists(capsuleId), "Nonexistent token");
-
-        bytes memory color = _bytes3ToHexColor(colorOf[capsuleId]);
-
-        // Calculate number of lines of text that should be rendered
+    /// @param fontWeight fontWeight of Capsule text
+    function imageFor(
+        bytes3 color,
+        bytes16[8] memory text,
+        uint256 fontWeight
+    ) public view returns (string memory image) {
+        // Count the number of lines that are not empty. Only these lines will be rendered
         uint256 linesCount;
-        for (uint256 i = 8; i > 0; i--) {
-            if (!_isEmptyLine(text[i - 1])) {
-                linesCount = i;
-                break;
+        {
+            for (uint256 i = 8; i > 0; i--) {
+                if (!_isEmptyLine(text[i - 1])) {
+                    linesCount = i;
+                    break;
+                }
             }
         }
 
         bytes[8] memory safeText = _htmlSafeText(text);
 
+        // Count the character length of the longest line of text
         uint256 longestLine;
-        for (uint256 i; i < 8; i++) {
+        for (uint256 i; i < linesCount; i++) {
             if (safeText[i].length > longestLine) {
                 longestLine = safeText[i].length;
             }
         }
 
+        // Width of the canvas in dots
         uint256 canvasWidthDots = longestLine * 5 + (longestLine - 1) + 6;
+        // Height of the canvas in dots
         uint256 canvasHeightDots = linesCount * 12 + 2;
 
         bytes memory rowId = abi.encodePacked(
@@ -249,103 +206,150 @@ contract CapsulesToken is
             Strings.toString(longestLine)
         );
 
-        // Reuse <g> elements instead of individual <circle> elements to minimize overall SVG size
-        bytes
-            memory dots1x12 = '<g id="dots1x12"><circle cx="2" cy="2" r="1.5"></circle><circle cx="2" cy="6" r="1.5"></circle><circle cx="2" cy="10" r="1.5"></circle><circle cx="2" cy="14" r="1.5"></circle><circle cx="2" cy="18" r="1.5"></circle><circle cx="2" cy="22" r="1.5"></circle><circle cx="2" cy="26" r="1.5"></circle><circle cx="2" cy="30" r="1.5"></circle><circle cx="2" cy="34" r="1.5"></circle><circle cx="2" cy="38" r="1.5"></circle><circle cx="2" cy="42" r="1.5"></circle><circle cx="2" cy="46" r="1.5"></circle></g>';
+        bytes memory hexColor = _bytes3ToHexChars(color);
 
-        bytes memory rowDots = abi.encodePacked('<g id="', rowId, '">');
-        for (uint256 i; i < canvasWidthDots; i++) {
-            rowDots = abi.encodePacked(
-                rowDots,
-                '<circle cx="',
-                Strings.toString(4 * i + 2),
-                '" cy="2" r="1.5"></circle>'
+        string memory _fontWeight = Strings.toString(fontWeight);
+
+        bytes memory defs;
+        {
+            // Reuse <g> elements instead of individual <circle> elements to minimize overall SVG size
+            bytes
+                memory dots1x12 = '<g id="dots1x12"><circle cx="2" cy="2" r="1.5"></circle><circle cx="2" cy="6" r="1.5"></circle><circle cx="2" cy="10" r="1.5"></circle><circle cx="2" cy="14" r="1.5"></circle><circle cx="2" cy="18" r="1.5"></circle><circle cx="2" cy="22" r="1.5"></circle><circle cx="2" cy="26" r="1.5"></circle><circle cx="2" cy="30" r="1.5"></circle><circle cx="2" cy="34" r="1.5"></circle><circle cx="2" cy="38" r="1.5"></circle><circle cx="2" cy="42" r="1.5"></circle><circle cx="2" cy="46" r="1.5"></circle></g>';
+
+            // <g> row of dots 1 dot high that spans entire canvas width
+            bytes memory rowDots;
+            {
+                rowDots = abi.encodePacked('<g id="', rowId, '">');
+                for (uint256 i; i < canvasWidthDots; i++) {
+                    rowDots = abi.encodePacked(
+                        rowDots,
+                        '<circle cx="',
+                        Strings.toString(4 * i + 2),
+                        '" cy="2" r="1.5"></circle>'
+                    );
+                }
+                rowDots = abi.encodePacked(rowDots, "</g>");
+            }
+
+            // <g> row of dots with text height that spans entire canvas width
+            bytes memory textRowDots;
+            {
+                textRowDots = abi.encodePacked('<g id="', textRowId, '">');
+                for (uint256 i; i < canvasWidthDots; i++) {
+                    textRowDots = abi.encodePacked(
+                        textRowDots,
+                        '<use href="#dots1x12" transform="translate(',
+                        Strings.toString(4 * i),
+                        ')"></use>'
+                    );
+                }
+                textRowDots = abi.encodePacked(textRowDots, "</g>");
+            }
+
+            defs = abi.encodePacked(dots1x12, rowDots, textRowDots);
+        }
+
+        bytes memory style;
+        {
+            Font memory font = Font({weight: fontWeight, style: "normal"});
+            bytes memory fontSrc = ITypeface(capsulesTypeface).fontSrc(font);
+            style = abi.encodePacked(
+                '<style>text { font-size: 40px; white-space: pre; } @font-face { font-family: "Capsules-',
+                _fontWeight,
+                '"; src: url(data:font/truetype;charset=utf-8;base64,',
+                fontSrc,
+                ') format("opentype")}</style>'
             );
         }
-        rowDots = abi.encodePacked(rowDots, "</g>");
 
-        bytes memory textRowDots = abi.encodePacked('<g id="', textRowId, '">');
-        for (uint256 i; i < canvasWidthDots; i++) {
-            textRowDots = abi.encodePacked(
-                textRowDots,
-                '<use href="#dots1x12" transform="translate(',
-                Strings.toString(4 * i),
-                ')"></use>'
+        bytes memory dots;
+        {
+            // Create background of dots as <g> group using <use> elements
+            dots = abi.encodePacked(
+                '<g fill="#',
+                hexColor,
+                '" opacity="0.3"><use href="#',
+                rowId,
+                '"></use>'
             );
-        }
-        textRowDots = abi.encodePacked(textRowDots, "</g>");
-
-        bytes memory dots = abi.encodePacked(
-            '<g fill="#',
-            color,
-            '" opacity="0.3"><use href="#',
-            rowId,
-            '"></use>'
-        );
-        for (uint256 i; i < linesCount; i++) {
+            for (uint256 i; i < linesCount; i++) {
+                dots = abi.encodePacked(
+                    dots,
+                    '<use href="#',
+                    textRowId,
+                    '" transform="translate(0 ',
+                    Strings.toString(48 * i + 4),
+                    ')"></use>'
+                );
+            }
             dots = abi.encodePacked(
                 dots,
                 '<use href="#',
-                textRowId,
+                rowId,
                 '" transform="translate(0 ',
-                Strings.toString(48 * i + 4),
-                ')"></use>'
+                Strings.toString((canvasHeightDots - 1) * 4),
+                ')"></use></g>'
             );
         }
-        dots = abi.encodePacked(
-            dots,
-            '<use href="#',
-            rowId,
-            '" transform="translate(0 ',
-            Strings.toString((canvasHeightDots - 1) * 4),
-            ')"></use></g>'
-        );
 
-        bytes memory texts = abi.encodePacked(
-            '<g fill="#',
-            color,
-            '" transform="translate(10 44)">'
-        );
-        for (uint256 i = 0; i < linesCount; i++) {
+        // Create <g> group of text elements
+        bytes memory texts;
+        {
             texts = abi.encodePacked(
+                '<g fill="#',
+                hexColor,
+                '" transform="translate(10 44)">'
+            );
+            for (uint256 i = 0; i < linesCount; i++) {
+                texts = abi.encodePacked(
+                    texts,
+                    '<text y="',
+                    Strings.toString(48 * i),
+                    '" font-family="Capsules-',
+                    _fontWeight,
+                    '">',
+                    safeText[i],
+                    "</text>"
+                );
+            }
+            texts = abi.encodePacked(texts, "</g>");
+        }
+
+        bytes memory svg;
+        {
+            svg = abi.encodePacked(
+                '<svg viewBox="0 0 ',
+                Strings.toString(canvasWidthDots * 4),
+                " ",
+                Strings.toString(canvasHeightDots * 4),
+                '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><defs>',
+                defs,
+                "</defs>",
+                style,
+                '<rect x="0" y="0" width="100%" height="100%" fill="#000"></rect>',
+                dots,
                 texts,
-                '<text y="',
-                Strings.toString(48 * i),
-                '">',
-                safeText[i],
-                "</text>"
+                "</svg>"
             );
         }
-        texts = abi.encodePacked(texts, "</g>");
-
-        bytes memory style = abi.encodePacked(
-            '<style>text { font-family: Capsules; font-size: 40px; white-space: pre; } @font-face { font-family: "Capsules"; src: url(',
-            capsulesTypeface.fontSrc(
-                ITypeface.Font({weight: 400, style: "normal"})
-            ),
-            ")}</style>"
-        );
-
-        bytes memory svg = abi.encodePacked(
-            '<svg viewBox="0 0 ',
-            Strings.toString(canvasWidthDots * 4),
-            " ",
-            Strings.toString(canvasHeightDots * 4),
-            '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><defs>',
-            dots1x12,
-            rowDots,
-            textRowDots,
-            "</defs>",
-            style,
-            '<rect x="0" y="0" width="100%" height="100%" fill="#000"></rect>',
-            dots,
-            texts,
-            "</svg>"
-        );
 
         image = string(
             abi.encodePacked("data:image/svg+xml;base64,", Base64.encode(svg))
         );
+    }
+
+    /// @notice Returns all Capsule data for capsuleId
+    /// @param capsuleId ID of capsule
+    function capsuleOf(uint256 capsuleId)
+        external
+        view
+        returns (Capsule memory capsule)
+    {
+        capsule = Capsule({
+            fontWeight: fontWeightOf[capsuleId],
+            color: colorOf[capsuleId],
+            text: textOf[capsuleId]
+        });
     }
 
     /// @notice Return token URI for Capsule
@@ -353,33 +357,32 @@ contract CapsulesToken is
     function tokenURI(uint256 capsuleId)
         public
         view
-        override(ICapsulesToken, ERC721)
+        override
         returns (string memory)
     {
-        require(
-            _exists(capsuleId),
-            "ERC721Metadata: URI query for nonexistent token"
-        );
+        require(_exists(capsuleId), "ERC721A: URI query for nonexistent token");
 
         bytes16[8] memory text = textOf[capsuleId];
 
         string memory image;
 
-        // If text contains invalid characters or is not set, use a default text instead
+        // If text contains invalid characters or is not set, use default image
         if (_isEmptyText(text) || !_isValidText(text)) {
             image = defaultImageOf(capsuleId);
         } else {
-            image = imageOf(capsuleId, text);
+            image = imageFor(colorOf[capsuleId], text, fontWeightOf[capsuleId]);
         }
 
         bytes memory json = abi.encodePacked(
             '{"name": "Capsule ',
             Strings.toString(capsuleId),
-            '", "description": "Capsules are 10,000 editable text images rendered entirely on-chain.", "image": "',
+            '", "description": "7,957 tokens with unique colors and editable text rendered on-chain. 7 pure colors are reserved for wallets that pay gas to store one of the 7 Capsules font weights in the CapsulesTypeface contract.", "image": "',
             image,
             '", "attributes": [{"trait_type": "Color", "value": "#',
-            _bytes3ToHexColor(colorOf[capsuleId]),
-            '"}]}'
+            _bytes3ToHexChars(colorOf[capsuleId]),
+            '"}, {"pure": "',
+            _isReservedColor(colorOf[capsuleId]),
+            "}]}"
         );
 
         return
@@ -391,144 +394,113 @@ contract CapsulesToken is
             );
     }
 
-    /// @notice Get IDs for all Capsule tokens owned by wallet
-    /// @param owner address to get token IDs for
-    function tokensOfOwner(address owner)
-        external
-        view
-        returns (uint256[] memory)
-    {
-        uint256 tokenCount = balanceOf(owner);
-        if (tokenCount == 0) {
-            // Return an empty array
-            return new uint256[](0);
-        } else {
-            uint256[] memory result = new uint256[](tokenCount);
-            uint256 index;
-            for (index = 0; index < tokenCount; index++) {
-                result[index] = tokenOfOwnerByIndex(owner, index);
-            }
-            return result;
-        }
-    }
-
     /// @notice Mints Capsule to sender
-    /// @dev Requires active sale and min value of `MINT_PRICE`. Cannot be used to mint colors reserved for auction. If `setTextFee` is not greater than mint price, Minter can save on gas and avoid paying additional fee to set text by setting it here. To save gas regardless, function will only set text if not "empty"
+    /// @dev Requires active sale, min value of `MINT_PRICE`, and unreserved color.
     /// @param color color of Capsule
     /// @param text text of Capsule
-    function mint(bytes3 color, bytes16[8] calldata text)
+    /// @param fontWeight fontWeight of Capsule
+    function mint(
+        bytes3 color,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    )
         external
         payable
+        onlyUnreservedColor(color)
         whenNotPaused
-        onlyNotAuctionColor(color)
         requireMintPrice
         nonReentrant
         returns (uint256 capsuleId)
     {
-        capsuleId = _mintCapsule(msg.sender, color);
-
-        // Only setText if non-empty text is passed
-        if (!_isEmptyText(text)) setText(capsuleId, text);
+        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight);
     }
 
-    /// @notice Allows friend to claim Capsule
-    /// @dev Requires active sale and for msg.sender to be on friends list. Cannot be used to mint colors reserved for auction.
-    /// @param color color of Capsule
-    function claim(bytes3 color)
+    /// @notice Mints Capsule to sender
+    /// @dev Requires active sale and reserved color.
+    /// @param fontWeight fontWeight of Capsule
+    /// @param text text of Capsule
+    function mintReservedForFontWeight(
+        address to,
+        uint256 fontWeight,
+        bytes16[8] calldata text
+    )
         external
+        onlyCapsulesTypeface
         whenNotPaused
-        onlyNotAuctionColor(color)
         nonReentrant
         returns (uint256 capsuleId)
     {
-        if (friendsList[msg.sender] < 1) revert("Not on Friends list");
-
-        friendsList[msg.sender]--;
-
-        capsuleId = _mintCapsule(msg.sender, color);
-
-        emit CapsuleClaimed(
-            msg.sender,
-            capsuleId,
-            string(_bytes3ToHexColor(color))
+        capsuleId = _mintCapsule(
+            to,
+            reservedColorForFontWeight(fontWeight),
+            text,
+            fontWeight
         );
     }
 
-    /// @notice Mint Capsule for the next unminted auction color to the auction house
-    function mintAuctionColor()
-        public
+    /// @notice Allows address on claim list to mint Capsule
+    /// @dev Requires active sale and for msg.sender to be on friends list.
+    /// @param color color of Capsule
+    /// @param text text of Capsule
+    /// @param fontWeight fontWeight of Capsule
+    function claim(
+        bytes3 color,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    )
+        external
+        onlyUnreservedColor(color)
+        onlyClaimable
+        whenNotPaused
         nonReentrant
-        onlyAuctionHouse
         returns (uint256 capsuleId)
     {
-        // Mint Capsule for first unminted color in `auctionColors`
-        for (uint256 i; i < auctionColors.length; i++) {
-            if (tokenOfColor[auctionColors[i]] == 0) {
-                capsuleId = _mintCapsule(
-                    address(auctionHouse),
-                    auctionColors[i]
-                );
-            }
-        }
+        claimCount[msg.sender]--;
+
+        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight);
+
+        emit ClaimCapsule(capsuleId, msg.sender, color, text, fontWeight);
     }
 
     /// @notice Withdraws up to 50% of revenue from primary mint to the fee receiver
-    function withdrawCreatorFee() external nonReentrant {
-        require(
-            creatorFeeWithdrawn < maxCreatorFee(),
-            "Cannot withdraw more than 50% of initial mint revenue for creator"
-        );
+    function withdraw() external nonReentrant {
+        uint256 balance = address(this).balance;
 
-        uint256 due = maxCreatorFee() - creatorFeeWithdrawn;
-        uint256 amount;
+        payable(creatorFeeReceiver).transfer(balance);
 
-        if (address(this).balance < due) amount = address(this).balance;
-        else amount = due;
-
-        creatorFeeWithdrawn += amount;
-        payable(creatorFeeReceiver).transfer(amount);
-
-        emit WithdrawCreatorFee(creatorFeeReceiver, amount);
+        emit Withdraw(creatorFeeReceiver, balance);
     }
 
-    /*
-    ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-                            CAPSULE OWNER FUNCTIONS
-    ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
+    /* -------------------------------------------------------------------------- */
+    /* ------------------------ CAPSULE OWNER FUNCTIONS ------------------------- */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Allows owner of Capsule to update the Capsule text
     /// @dev Must send at least the value of `textEditFee`
     /// @param capsuleId id of Capsule token
     /// @param text new text for Capsule
-    function setText(uint256 capsuleId, bytes16[8] calldata text)
+    /// @param fontWeight new font weight for Capsule
+    function editCapsule(
+        uint256 capsuleId,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    )
         public
-        payable
         onlyCapsuleOwner(capsuleId)
         onlyValidText(text)
-        requireSetTextPrice
+        onlyValidFontWeight(fontWeight)
         nonReentrant
     {
         textOf[capsuleId] = text;
+        fontWeightOf[capsuleId] = fontWeight;
 
-        emit SetText(capsuleId, text);
-    }
-
-    /// @notice Allows owner of Capsule to set Delegate vote of Capsule token
-    /// @param capsuleId id of Capsule token
-    /// @param delegate address of Delegate to vote for
-    function setDelegateVote(uint256 capsuleId, address delegate)
-        public
-        onlyCapsuleOwner(capsuleId)
-        nonReentrant
-    {
-        _setDelegateVote(capsuleId, delegate);
+        emit EditCapsule(capsuleId, text, fontWeight);
     }
 
     /// @notice Burn a Capsule
     /// @param capsuleId id of Capsule token
     function burn(uint256 capsuleId)
-        public
+        external
         onlyCapsuleOwner(capsuleId)
         nonReentrant
     {
@@ -538,47 +510,9 @@ contract CapsulesToken is
     /// @dev Allows contract to receive ETH
     receive() external payable {}
 
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    DELEGATE FUNCTIONS
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
-
-    /// @notice Allows Delegate to withdraw ETH
-    /// @param amount amount of ETH to withdraw
-    function withdraw(uint256 amount)
-        external
-        onlyDelegate
-        onlyAfterMintComplete
-        nonReentrant
-    {
-        payable(msg.sender).transfer(amount);
-
-        emit Withdraw(msg.sender, amount);
-    }
-
-    /// @notice Allows Delegate to update textEditFee
-    /// @param _textEditFee new textEditFee
-    function setTextEditFee(uint256 _textEditFee)
-        external
-        onlyDelegate
-        onlyAfterMintComplete
-        nonReentrant
-    {
-        textEditFee = _textEditFee;
-
-        emit SetTextEditFee(_textEditFee);
-    }
-
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    OWNER FUNCTIONS
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
+    /* -------------------------------------------------------------------------- */
+    /* ---------------------------- OWNER FUNCTIONS ----------------------------- */
+    /* -------------------------------------------------------------------------- */
 
     /// @notice Allows the owner to update creatorFeeReceiver
     /// @param _creatorFeeReceiver address of new creatorFeeReceiver
@@ -592,73 +526,118 @@ contract CapsulesToken is
     }
 
     /// @notice Allows the owner to update friendsList
-    /// @param friends list of friends' addresses
-    /// @param number number of mints allowed for each address in friends
-    function setFriendsList(address[] calldata friends, uint256 number)
+    /// @param recievers list of addresses that can claim
+    /// @param number number of mints allowed for each receiver address
+    function setClaimable(address[] calldata recievers, uint256 number)
         external
         onlyOwner
     {
-        for (uint256 i; i < friends.length; i++) {
-            friendsList[friends[i]] = number;
-            emit SetFriend(friends[i], number);
+        for (uint256 i; i < recievers.length; i++) {
+            claimCount[recievers[i]] = number;
+            emit SetClaimCount(recievers[i], number);
         }
     }
 
-    /// @notice Pause the Capsules auction house.
+    /// @notice Allows the owner to update royalty amount
+    /// @param _royalty new royalty amount
+    function setRoyalty(uint256 _royalty) external onlyOwner {
+        require(_royalty <= 1000);
+
+        royalty = _royalty;
+
+        emit SetRoyalty(_royalty);
+    }
+
+    /// @notice Returns the reserved color for a specific font weight
+    /// @param fontWeight font weight
+    function reservedColorForFontWeight(uint256 fontWeight)
+        public
+        view
+        returns (bytes3)
+    {
+        // Map fontWeight to reserved color
+        // 100 == reservedColors[0]
+        // 200 == reservedColors[1]
+        // 300 == reservedColors[2]
+        // ...
+        bytes3 color = reservedColors[(fontWeight / 100) - 1];
+
+        assert(_isReservedColor(color));
+
+        return color;
+    }
+
+    /// @notice Pause contract
     /// @dev Can only be called by the owner when the contract is unpaused.
     function pause() external override onlyOwner {
         _pause();
     }
 
-    /// @notice Unpause the Capsules auction house.
+    /// @notice Unpause contract
     /// @dev Can only be called by the owner when the contract is paused.
     function unpause() external override onlyOwner {
         _unpause();
     }
 
-    /*
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    INTERNAL FUNCTIONS
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-    */
-
-    /// @notice Max ETH fee that can be withdrawn to creator
-    function maxCreatorFee() internal view returns (uint256) {
-        return (primarySupply * MINT_PRICE) / 2;
+    /// @notice EIP2981 royalty standard
+    function royaltyInfo(uint256, uint256 salePrice)
+        external
+        view
+        returns (address receiver, uint256 royaltyAmount)
+    {
+        return (payable(this), (salePrice * royalty) / 1000);
     }
 
-    /// @notice Resets delegate vote of Capsule before token is transferred
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 capsuleId
-    ) internal override(ERC721Enumerable) {
-        _setDelegateVote(capsuleId, address(0));
-        super._beforeTokenTransfer(from, to, capsuleId);
+    /// @notice EIP2981 standard Interface return. Adds to ERC721A Interface returns.
+    /// @dev See {IERC165-supportsInterface}.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165, ERC721A)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IERC2981).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* --------------------------- INTERNAL FUNCTIONS --------------------------- */
+    /* -------------------------------------------------------------------------- */
+
+    /// @notice ERC721A override to start tokenId's at 1 instead of 0.
+    function _startTokenId() internal pure override returns (uint256) {
+        return 1;
     }
 
     /// @notice Mints Capsule
-    /// @dev Sets token ID for new Capsule. Stores `colorOf` and reverse mapping `tokenOfColor`
-    /// @param to address to receive Capsule
+    /// @dev Stores `colorOf` and reverse mapping `tokenOfColor`
     /// @param color color of Capsule
-    function _mintCapsule(address to, bytes3 color)
+    /// @param text text of Capsule
+    /// @param fontWeight fontWeight of Capsule
+    function _mintCapsule(
+        address to,
+        bytes3 color,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    )
         internal
         onlyValidColor(color)
         onlyUnmintedColor(color)
+        onlyValidFontWeight(fontWeight)
         returns (uint256 capsuleId)
     {
-        // Start ids at 1
-        capsuleId = mintedCount + 1;
-        mintedCount++;
+        _mint(to, 1, new bytes(0), false);
+
+        capsuleId = _currentIndex - 1;
 
         colorOf[capsuleId] = color;
         tokenOfColor[color] = capsuleId;
+        textOf[capsuleId] = text;
+        fontWeightOf[capsuleId] = fontWeight;
 
-        _safeMint(to, capsuleId);
-
-        emit CapsuleMinted(to, capsuleId, string(_bytes3ToHexColor(color)));
+        emit MintCapsule(capsuleId, to, color, text, fontWeight);
     }
 
     /// @notice Check if text is valid
@@ -671,13 +650,29 @@ contract CapsulesToken is
             for (uint256 j; j < line.length; j++) {
                 bytes1 char = line[i];
 
-                if (!capsulesTypeface.isAllowedByte(char) && char != 0x00) {
+                if (
+                    !ITypeface(capsulesTypeface).isAllowedByte(char) &&
+                    char != 0x00
+                ) {
                     return false;
                 }
             }
         }
 
         return true;
+    }
+
+    /// @notice Check if fontWeight is valid
+    /// @param fontWeight font weight to check validity of
+    function _isValidFontWeight(uint256 fontWeight)
+        internal
+        view
+        returns (bool)
+    {
+        return
+            ITypeface(capsulesTypeface)
+                .fontSrc(Font({weight: fontWeight, style: "normal"}))
+                .length > 0;
     }
 
     /// @notice Check if line is empty
@@ -703,18 +698,31 @@ contract CapsulesToken is
     }
 
     /// @notice Check if color is valid for minting
-    /// @dev Returns true if at least one byte == 0xFF (255), AND all bytes are evely divisible by 0x05 (5)
+    /// @dev Returns true if at least one byte == 0xFF (255), AND all byte values are evenly divisible by 5
     /// @param color color to check validity of
     function _isValidColor(bytes3 color) internal pure returns (bool) {
+        // At least one byte must equal 0xff
         if (color[0] < 0xff && color[1] < 0xff && color[2] < 0xff) {
             return false;
         }
 
+        // All bytes must be divisible by 5
         for (uint256 i; i < 3; i++) {
             if (uint8(color[i]) % 5 != 0) return false;
         }
 
         return true;
+    }
+
+    /// @notice Check if color is valid for minting
+    /// @dev Returns true if at least one byte == 0xFF (255), AND all byte values are evenly divisible by 5
+    /// @param color color to check validity of
+    function _isReservedColor(bytes3 color) internal view returns (bool) {
+        for (uint256 i; i < reservedColors.length; i++) {
+            if (color == reservedColors[i]) return true;
+        }
+
+        return false;
     }
 
     /// @notice Returns html-safe version of text
@@ -759,8 +767,8 @@ contract CapsulesToken is
         }
     }
 
-    /// @notice Format bytes3 type for use as hex color code in html
-    function _bytes3ToHexColor(bytes3 b)
+    /// @notice Format bytes3 type to 6 hexadecimal ascii bytes
+    function _bytes3ToHexChars(bytes3 b)
         internal
         pure
         returns (bytes memory o)
@@ -768,21 +776,21 @@ contract CapsulesToken is
         uint24 i = uint24(b);
         o = new bytes(6);
         uint24 mask = 0x00000f;
-        o[5] = _uint8toHexChar(uint8(i & mask));
+        o[5] = _uint8toByte(uint8(i & mask));
         i = i >> 4;
-        o[4] = _uint8toHexChar(uint8(i & mask));
+        o[4] = _uint8toByte(uint8(i & mask));
         i = i >> 4;
-        o[3] = _uint8toHexChar(uint8(i & mask));
+        o[3] = _uint8toByte(uint8(i & mask));
         i = i >> 4;
-        o[2] = _uint8toHexChar(uint8(i & mask));
+        o[2] = _uint8toByte(uint8(i & mask));
         i = i >> 4;
-        o[1] = _uint8toHexChar(uint8(i & mask));
+        o[1] = _uint8toByte(uint8(i & mask));
         i = i >> 4;
-        o[0] = _uint8toHexChar(uint8(i & mask));
+        o[0] = _uint8toByte(uint8(i & mask));
     }
 
-    /// @notice Convert uint8 type to hex
-    function _uint8toHexChar(uint8 i) internal pure returns (bytes1 b) {
+    /// @notice Convert uint8 type to ascii byte
+    function _uint8toByte(uint8 i) internal pure returns (bytes1 b) {
         uint8 _i = (i > 9)
             ? (i + 87) // ascii a-f
             : (i + 48); // ascii 0-9

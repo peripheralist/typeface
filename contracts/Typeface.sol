@@ -45,29 +45,33 @@ abstract contract Typeface is ITypeface {
     function setFontSrc(Font memory font, bytes memory src) public {
         require(
             _fontSrc[font.weight][font.style].length == 0,
-            "Font already initialized"
+            "Typeface: FontSrc already exists"
         );
 
         require(
             keccak256(src) == _fontSrcHash[font.weight][font.style],
-            "Invalid font"
+            "Typeface: Invalid font"
         );
+
+        beforeSetFontSrc(font, src);
 
         _fontSrc[font.weight][font.style] = src;
 
-        emit SetFontSrc(font);
+        emit SetFontSrc(font, src);
+
+        afterSetFontSrc(font, src);
     }
 
     /// @notice Sets hash of src for Font.
-    ///  @dev Length of fonts and hashes arrays must be equal. Each hash from hashes array will be set for the font with matching index in the fonts array.
-    ///  @param fonts Array of fonts to set hashes for
-    ///  @param hashes Array of hashes to set for fonts
+    /// @dev Length of fonts and hashes arrays must be equal. Each hash from hashes array will be set for the font with matching index in the fonts array.
+    /// @param fonts Array of fonts to set hashes for
+    /// @param hashes Array of hashes to set for fonts
     function setFontSrcHash(Font[] memory fonts, bytes32[] memory hashes)
         internal
     {
         require(
             fonts.length == hashes.length,
-            "Unequal number of fonts and hashes"
+            "Typeface: Unequal number of fonts and hashes"
         );
 
         for (uint256 i; i < fonts.length; i++) {
@@ -80,4 +84,16 @@ abstract contract Typeface is ITypeface {
     constructor(string memory name_) {
         _name = name_;
     }
+
+    /// @notice Function called before setFontSrc
+    function beforeSetFontSrc(Font memory font, bytes memory src)
+        internal
+        virtual
+    {}
+
+    /// @notice Function called after setFontSrc
+    function afterSetFontSrc(Font memory font, bytes memory src)
+        internal
+        virtual
+    {}
 }

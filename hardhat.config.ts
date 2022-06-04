@@ -4,6 +4,7 @@ import "hardhat-contract-sizer";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
+import "@nomiclabs/hardhat-etherscan";
 import * as fs from "fs";
 
 function mnemonic() {
@@ -41,14 +42,16 @@ module.exports = {
     localhost: {
       url: "http://localhost:8545",
     },
-    kovan: {
-      url: "https://kovan.infura.io/v3/" + infuraId,
-      accounts: {
-        mnemonic: mnemonic(),
-      },
-    },
     rinkeby: {
       url: "https://rinkeby.infura.io/v3/" + infuraId,
+      accounts: [deployerPk()],
+    },
+    goerli: {
+      url: "https://goerli.infura.io/v3/" + infuraId,
+      accounts: [deployerPk()],
+    },
+    kovan: {
+      url: "https://kovan.infura.io/v3/" + infuraId,
       accounts: [deployerPk()],
     },
     mainnet: {
@@ -59,13 +62,15 @@ module.exports = {
   },
   etherscan: {
     apiKey: {
-      // rinkeby: `5NE8T9T1Q6PT9DTHC5DTB8GU4BK76W7SMQ`,
+      rinkeby: `5NE8T9T1Q6PT9DTHC5DTB8GU4BK76W7SMQ`,
+      goerli: `5NE8T9T1Q6PT9DTHC5DTB8GU4BK76W7SMQ`,
+      kovan: `5NE8T9T1Q6PT9DTHC5DTB8GU4BK76W7SMQ`,
       mainnet: `5NE8T9T1Q6PT9DTHC5DTB8GU4BK76W7SMQ`,
       // mainnet: `${process.env.ETHERSCAN_API_KEY}`,
     },
   },
   solidity: {
-    version: "0.8.12",
+    version: "0.8.14",
     settings: {
       optimizer: {
         enabled: true,

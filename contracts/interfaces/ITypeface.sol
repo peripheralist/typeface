@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+struct Font {
+    uint256 weight;
+    string style;
+}
+
 interface ITypeface {
-    struct Font {
-        uint256 weight;
-        string style;
-    }
+    event SetFontSrc(Font font, bytes src);
 
-    event SetFontSrc(Font indexed font);
-
-    event SetFontSrcHash(Font indexed font, bytes32 indexed _hash);
+    event SetFontSrcHash(Font font, bytes32 _hash);
 
     /**
      * @notice Returns the typeface name.

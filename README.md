@@ -1,1 +1,1 @@
-# Tiles contracts
+# Capsules contracts

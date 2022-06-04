@@ -2,53 +2,89 @@
 
 /// @title Interface for Capsules Token
 
-pragma solidity ^0.8.12;
+pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-interface ICapsulesToken is IERC721Enumerable {
-    event CapsuleMinted(address to, uint256 id, string color);
-    event CapsuleClaimed(address to, uint256 id, string color);
-    event SetCreatorFeeReceiver(address addresses);
-    event SetFriend(address friend, uint256 number);
-    event SetText(uint256 id, bytes16[8] text);
-    event SetTextEditFee(uint256 fee);
+struct Capsule {
+    bytes3 color;
+    uint256 fontWeight;
+    bytes16[8] text;
+}
+
+interface ICapsulesToken {
+    event MintCapsule(
+        uint256 indexed id,
+        address indexed to,
+        bytes3 indexed color,
+        bytes16[8] text,
+        uint256 fontWeight
+    );
+    event ClaimCapsule(
+        uint256 indexed id,
+        address indexed to,
+        bytes3 indexed color,
+        bytes16[8] text,
+        uint256 fontWeight
+    );
+    event SetCreatorFeeReceiver(address _address);
+    event SetClaimCount(address indexed _address, uint256 number);
+    event SetReservedColors(bytes3[] colors);
+    event SetRoyalty(uint256 royalty);
+    event EditCapsule(uint256 indexed id, bytes16[8] text, uint256 fontWeight);
     event Withdraw(address to, uint256 amount);
-    event WithdrawCreatorFee(address to, uint256 amount);
 
     function defaultImageOf(uint256 capsuleId)
         external
         view
         returns (string memory);
 
-    function imageOf(uint256 capsuleId, bytes16[8] memory text)
+    function imageFor(
+        bytes3 color,
+        bytes16[8] memory text,
+        uint256 fontWeight
+    ) external view returns (string memory);
+
+    function capsuleOf(uint256 capsuleId)
         external
         view
-        returns (string memory);
+        returns (Capsule memory capsule);
 
-    function tokenURI(uint256 capsuleId) external view returns (string memory);
+    function mint(
+        bytes3 color,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    ) external payable returns (uint256);
 
-    function tokensOfOwner(address) external view returns (uint256[] memory);
+    function mintReservedForFontWeight(
+        address to,
+        uint256 fontWeight,
+        bytes16[8] calldata text
+    ) external returns (uint256 capsuleId);
 
-    function setText(uint256 capsuleId, bytes16[8] calldata text)
-        external
-        payable;
+    function claim(
+        bytes3 color,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    ) external returns (uint256 capsuleId);
 
-    function mint(bytes3 color, bytes16[8] calldata text)
-        external
-        payable
-        returns (uint256);
+    function withdraw() external;
 
-    function mintAuctionColor() external returns (uint256);
+    function editCapsule(
+        uint256 capsuleId,
+        bytes16[8] calldata text,
+        uint256 fontWeight
+    ) external;
 
     function burn(uint256 capsuleId) external;
 
-    function withdrawCreatorFee() external;
+    function setCreatorFeeReceiver(address _creatorFeeReceiver) external;
 
-    function withdraw(uint256 amount) external;
+    function setClaimable(address[] calldata receivers, uint256 number)
+        external;
 
-    function setTextEditFee(uint256 _textEditFee) external;
+    function setRoyalty(uint256 _royalty) external;
 
     function pause() external;
 

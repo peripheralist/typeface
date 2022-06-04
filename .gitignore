@@ -8,10 +8,3 @@ deployments/localhost
 typechain-types
 build
 .DS_Store 
-
-contracts/ERC721A.sol
-contracts/OKPC.sol
-contracts/SSTORE2.sol
-contracts/interfaces/IOKPC.sol
-contracts/interfaces/IOKPCMetadata.sol
-contracts/interfaces/IOKPCParts.sol
