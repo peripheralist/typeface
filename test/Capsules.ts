@@ -1,28 +1,59 @@
 import { expect } from "chai";
+import { utils } from "ethers";
 
-import { CapsulesToken, CapsulesTypeface } from "../typechain-types";
 import { fonts } from "../fonts";
+import {
+  CapsulesMetadata,
+  CapsulesToken,
+  CapsulesTypeface,
+} from "../typechain-types";
 import {
   capsulesContract,
   capsulesTypefaceContract,
+  deployCapsulesMetadata,
   deployCapsulesToken,
   deployCapsulesTypeface,
   emptyNote,
   formatBytes16,
   mintPrice,
+  mintValidCapsules,
   totalSupply,
   wallets,
 } from "./utils";
 
 export let capsulesTypeface: CapsulesTypeface;
 export let capsulesToken: CapsulesToken;
+export let capsulesMetadata: CapsulesMetadata;
 
 describe("Capsules", async () => {
   before(async () => {
-    capsulesTypeface = await deployCapsulesTypeface();
+    const { deployer } = await wallets();
 
-    // Define global capsulesAddress
-    capsulesToken = await deployCapsulesToken(capsulesTypeface.address);
+    let nonce = await deployer.getTransactionCount();
+    const expectedCapsulesTokenAddress = utils.getContractAddress({
+      from: deployer.address,
+      nonce: nonce + 1,
+    });
+
+    capsulesTypeface = await deployCapsulesTypeface(
+      expectedCapsulesTokenAddress
+    );
+
+    nonce = await deployer.getTransactionCount();
+    const expectedCapsulesMetadataAddress = utils.getContractAddress({
+      from: deployer.address,
+      nonce: nonce + 1,
+    });
+
+    capsulesToken = await deployCapsulesToken(
+      capsulesTypeface.address,
+      expectedCapsulesMetadataAddress
+    );
+
+    capsulesMetadata = await deployCapsulesMetadata(
+      capsulesToken.address,
+      capsulesTypeface.address
+    );
   });
 
   describe("Deployment", async () => {
@@ -36,8 +67,16 @@ describe("Capsules", async () => {
       expect(await capsules.capsulesTypeface()).to.equal(
         capsulesTypeface.address
       );
+
       expect(await capsulesTypeface.capsulesToken()).to.equal(
         capsulesToken.address
+      );
+
+      expect(await capsulesMetadata.capsulesToken()).to.equal(
+        capsulesToken.address
+      );
+      expect(await capsulesMetadata.capsulesTypeface()).to.equal(
+        capsulesTypeface.address
       );
     });
   });
@@ -149,7 +188,7 @@ describe("Capsules", async () => {
           },
           Buffer.from(fonts[400])
         )
-      ).to.be.revertedWith("Typeface: FontSrc already exists");
+      ).to.be.revertedWith("Typeface: font src already exists");
     });
   });
 
@@ -167,7 +206,7 @@ describe("Capsules", async () => {
 
       await expect(
         capsulesContract(minter1).claim("0xff0005", emptyNote, 400)
-      ).to.be.revertedWith("No claimable tokens");
+      ).to.be.revertedWith("NoClaimableTokens()");
     });
 
     it("Claim should succeed for non-friend", async () => {
@@ -181,7 +220,7 @@ describe("Capsules", async () => {
 
       await expect(
         capsulesContract(friend1).claim("0xff00a0", emptyNote, 400)
-      ).to.be.revertedWith("No claimable tokens");
+      ).to.be.revertedWith("NoClaimableTokens()");
     });
   });
 
@@ -193,7 +232,7 @@ describe("Capsules", async () => {
         capsulesContract(minter1).mint("0x0005ff", emptyNote, 100, {
           value: mintPrice,
         })
-      ).to.be.revertedWith("Invalid font weight");
+      ).to.be.revertedWith("InvalidFontWeight()");
     });
 
     it("Mint with invalid color should revert", async () => {
@@ -203,7 +242,7 @@ describe("Capsules", async () => {
         capsulesContract(minter1).mint("0x0000fe", emptyNote, 400, {
           value: mintPrice,
         })
-      ).to.be.revertedWith("Invalid color");
+      ).to.be.revertedWith("InvalidColor()");
     });
 
     it("Mint with low price should revert", async () => {
@@ -213,7 +252,7 @@ describe("Capsules", async () => {
         capsulesContract(owner).mint("0x0005ff", emptyNote, 400, {
           value: mintPrice.sub(1),
         })
-      ).to.be.revertedWith("Ether value sent is below the mint price");
+      ).to.be.revertedWith("ValueBelowMintPrice()");
     });
 
     it("Mint reserved color should revert", async () => {
@@ -223,7 +262,7 @@ describe("Capsules", async () => {
         capsulesContract(minter1).mint("0x0000ff", emptyNote, 400, {
           value: mintPrice,
         })
-      ).to.be.revertedWith("Color reserved");
+      ).to.be.revertedWith("PureColorNotAllowed()");
     });
 
     it("Mint with valid color and note should succeed", async () => {
@@ -231,13 +270,23 @@ describe("Capsules", async () => {
 
       const minter1Capsules = capsulesContract(minter1);
 
+      const fontWeight = 400;
+
+      const color = "0x0005ff";
+
       await expect(
-        minter1Capsules.mint("0x0005ff", emptyNote, 400, {
+        minter1Capsules.mint(color, emptyNote, fontWeight, {
           value: mintPrice,
         })
       )
         .to.emit(minter1Capsules, "MintCapsule")
-        .withArgs(minter1.address, (await totalSupply()).add(1), "0005ff");
+        .withArgs(
+          (await totalSupply()).add(1),
+          minter1.address,
+          color,
+          emptyNote,
+          fontWeight
+        );
 
       // console.log(
       //   await minter1Capsules.textOf(1, 0),
@@ -252,11 +301,15 @@ describe("Capsules", async () => {
 
       const minter1Capsules = capsulesContract(minter1);
 
+      const color = "0x0005ff";
+
       await expect(
-        minter1Capsules.mint("0x0005ff", emptyNote, 400, {
+        minter1Capsules.mint(color, emptyNote, 400, {
           value: mintPrice,
         })
-      ).to.be.revertedWith("Color already minted");
+      ).to.be.revertedWith(
+        `ColorAlreadyMinted(${await capsulesToken.capsuleForColor(color)})`
+      );
     });
 
     it("Edit non-owned capsule should revert", async () => {
@@ -264,15 +317,21 @@ describe("Capsules", async () => {
 
       const id = 3;
 
+      expect(await capsulesToken.ownerOf(id)).to.not.equal(minter2.address);
+
       await expect(
         capsulesContract(minter2).editCapsule(id, emptyNote, 400)
-      ).to.be.revertedWith("Capsule not owned");
+      ).to.be.revertedWith(
+        `NotCapsuleOwner("${await capsulesToken.ownerOf(id)}")`
+      );
     });
 
     it("Edit owned capsule should succeed", async () => {
       const { minter1 } = await wallets();
 
       const id = 3;
+
+      expect(await capsulesToken.ownerOf(id)).to.equal(minter1.address);
 
       await capsulesContract(minter1).editCapsule(id, emptyNote, 400);
     });
@@ -284,7 +343,7 @@ describe("Capsules", async () => {
 
       await expect(
         capsulesContract(minter1).editCapsule(id, emptyNote, 69)
-      ).to.be.revertedWith("Invalid font weight");
+      ).to.be.revertedWith("InvalidFontWeight()");
     });
 
     it("Set invalid text should revert", async () => {
@@ -307,7 +366,7 @@ describe("Capsules", async () => {
           ],
           400
         )
-      ).to.be.revertedWith("Invalid text");
+      ).to.be.revertedWith("InvalidText()");
     });
 
     // it("Should mint all capsules", async () => {

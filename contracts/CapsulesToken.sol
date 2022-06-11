@@ -11,11 +11,21 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "./ERC721A.sol";
+import "./interfaces/ICapsulesMetadata.sol";
 import "./interfaces/ICapsulesToken.sol";
 import "./interfaces/ITypeface.sol";
-import "./utils/Base64.sol";
+
+error ValueBelowMintPrice();
+error InvalidText();
+error InvalidFontWeight();
+error InvalidColor();
+error PureColorNotAllowed();
+error NotCapsulesTypeface();
+error NoClaimableTokens();
+error ColorAlreadyMinted(uint256 capsuleId);
+error NotCapsuleOwner(address owner);
+error CapsuleMetadataLocked();
 
 contract CapsulesToken is
     ICapsulesToken,
@@ -31,61 +41,63 @@ contract CapsulesToken is
 
     /// @notice Require that the value sent is at least MINT_PRICE
     modifier requireMintPrice() {
-        require(
-            msg.value >= MINT_PRICE,
-            "Ether value sent is below the mint price"
-        );
+        if (msg.value < MINT_PRICE) revert ValueBelowMintPrice();
         _;
     }
 
     /// @notice Require that the text is valid
     modifier onlyValidText(bytes16[8] calldata text) {
-        require(_isValidText(text), "Invalid text");
+        if (!_isValidText(text)) revert InvalidText();
         _;
     }
 
     /// @notice Require that the text is valid
     modifier onlyValidFontWeight(uint256 fontWeight) {
-        require(_isValidFontWeight(fontWeight), "Invalid font weight");
+        if (!_isValidFontWeight(fontWeight)) revert InvalidFontWeight();
         _;
     }
 
     /// @notice Require that the color is valid
     modifier onlyValidColor(bytes3 color) {
-        require(_isValidColor(color), "Invalid color");
+        if (!_isValidColor(color)) revert InvalidColor();
         _;
     }
 
-    /// @notice Require that the color is not reserved
-    modifier onlyUnreservedColor(bytes3 color) {
-        require(!_isReservedColor(color), "Color reserved");
+    /// @notice Require that the color is not pure
+    modifier onlyImpureColor(bytes3 color) {
+        if (isPureColor(color)) revert PureColorNotAllowed();
         _;
     }
 
     /// @notice Require that the sender is the Capsules Typeface contract
     modifier onlyCapsulesTypeface() {
-        require(
-            msg.sender == capsulesTypeface,
-            "Caller is not the Capsules Typeface"
-        );
+        if (msg.sender != capsulesTypeface) revert NotCapsulesTypeface();
         _;
     }
 
     /// @notice Require that the color is valid
     modifier onlyClaimable() {
-        require(claimCount[msg.sender] >= 1, "No claimable tokens");
+        if (claimCount[msg.sender] < 1) revert NoClaimableTokens();
         _;
     }
 
     /// @notice Require that the color is not minted
     modifier onlyUnmintedColor(bytes3 color) {
-        require(tokenOfColor[color] == 0, "Color already minted");
+        uint256 capsuleId = capsuleForColor[color];
+        if (_exists(capsuleId)) revert ColorAlreadyMinted(capsuleId);
         _;
     }
 
     /// @notice Require that the sender is the Capsule owner
     modifier onlyCapsuleOwner(uint256 capsuleId) {
-        require(ownerOf(capsuleId) == msg.sender, "Capsule not owned");
+        address owner = ownerOf(capsuleId);
+        if (owner != msg.sender) revert NotCapsuleOwner(owner);
+        _;
+    }
+
+    /// @notice Require that metadata has not been locked
+    modifier onlyIfMetadataUnlocked() {
+        if (metadataLocked) revert CapsuleMetadataLocked();
         _;
     }
 
@@ -95,14 +107,16 @@ contract CapsulesToken is
 
     constructor(
         address _capsulesTypeface,
+        address _capsulesMetadata,
         address _creatorFeeReceiver,
-        bytes3[] memory _reservedColors,
+        bytes3[] memory _pureColors,
         uint256 _royalty
     ) ERC721A("Capsules", "CAPS") {
         capsulesTypeface = _capsulesTypeface;
+        capsulesMetadata = _capsulesMetadata;
         creatorFeeReceiver = _creatorFeeReceiver;
-        reservedColors = _reservedColors;
-        emit SetReservedColors(_reservedColors);
+        pureColors = _pureColors;
+        emit SetPureColors(_pureColors);
         royalty = _royalty;
 
         _pause();
@@ -121,20 +135,17 @@ contract CapsulesToken is
     /// Capsules typeface address
     address public immutable capsulesTypeface;
 
-    /// Color for a token id
-    mapping(uint256 => bytes3) public colorOf;
+    /// CapsulesMetadata address
+    address public capsulesMetadata;
 
-    /// Token id for a color
-    mapping(bytes3 => uint256) public tokenOfColor;
+    /// Mapping of minted color to token ID
+    mapping(bytes3 => uint256) public capsuleForColor;
 
-    /// Text of a token id
-    mapping(uint256 => bytes16[8]) public textOf;
+    /// Mapping of capsuleId to Capsule data
+    mapping(uint256 => Capsule) public _capsuleFor;
 
-    /// Font weight of a token id
-    mapping(uint256 => uint256) public fontWeightOf;
-
-    /// Array of reserved colors
-    bytes3[] reservedColors;
+    /// Array of pure colors
+    bytes3[] pureColors;
 
     /// Address to receive fees
     address public creatorFeeReceiver;
@@ -142,218 +153,16 @@ contract CapsulesToken is
     /// Royalty amount out of 1000
     uint256 public royalty;
 
+    /// CapsulesMetadata contract address cannot be updated if locked
+    bool public metadataLocked;
+
     /* -------------------------------------------------------------------------- */
     /* --------------------------- EXTERNAL FUNCTIONS --------------------------- */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Return placeholder image for a Capsule
-    /// @param capsuleId id of Capsule token
-    function defaultImageOf(uint256 capsuleId)
-        public
-        view
-        returns (string memory image)
-    {
-        bytes16[8] memory text;
-        text[0] = bytes16("CAPSULE");
-        text[1] = bytes16(
-            abi.encodePacked("#", _bytes3ToHexChars(colorOf[capsuleId]))
-        );
-
-        image = imageFor(colorOf[capsuleId], text, fontWeightOf[capsuleId]);
-    }
-
-    /// @notice Return base64 encoded SVG for Capsule
-    /// @param color color of Capsule token
-    /// @param text text to render in image
-    /// @param fontWeight fontWeight of Capsule text
-    function imageFor(
-        bytes3 color,
-        bytes16[8] memory text,
-        uint256 fontWeight
-    ) public view returns (string memory image) {
-        // Count the number of lines that are not empty. Only these lines will be rendered
-        uint256 linesCount;
-        {
-            for (uint256 i = 8; i > 0; i--) {
-                if (!_isEmptyLine(text[i - 1])) {
-                    linesCount = i;
-                    break;
-                }
-            }
-        }
-
-        bytes[8] memory safeText = _htmlSafeText(text);
-
-        // Count the character length of the longest line of text
-        uint256 longestLine;
-        for (uint256 i; i < linesCount; i++) {
-            if (safeText[i].length > longestLine) {
-                longestLine = safeText[i].length;
-            }
-        }
-
-        // Width of the canvas in dots
-        uint256 canvasWidthDots = longestLine * 5 + (longestLine - 1) + 6;
-        // Height of the canvas in dots
-        uint256 canvasHeightDots = linesCount * 12 + 2;
-
-        bytes memory rowId = abi.encodePacked(
-            "row",
-            Strings.toString(longestLine)
-        );
-        bytes memory textRowId = abi.encodePacked(
-            "textRow",
-            Strings.toString(longestLine)
-        );
-
-        bytes memory hexColor = _bytes3ToHexChars(color);
-
-        string memory _fontWeight = Strings.toString(fontWeight);
-
-        bytes memory defs;
-        {
-            // Reuse <g> elements instead of individual <circle> elements to minimize overall SVG size
-            bytes
-                memory dots1x12 = '<g id="dots1x12"><circle cx="2" cy="2" r="1.5"></circle><circle cx="2" cy="6" r="1.5"></circle><circle cx="2" cy="10" r="1.5"></circle><circle cx="2" cy="14" r="1.5"></circle><circle cx="2" cy="18" r="1.5"></circle><circle cx="2" cy="22" r="1.5"></circle><circle cx="2" cy="26" r="1.5"></circle><circle cx="2" cy="30" r="1.5"></circle><circle cx="2" cy="34" r="1.5"></circle><circle cx="2" cy="38" r="1.5"></circle><circle cx="2" cy="42" r="1.5"></circle><circle cx="2" cy="46" r="1.5"></circle></g>';
-
-            // <g> row of dots 1 dot high that spans entire canvas width
-            bytes memory rowDots;
-            {
-                rowDots = abi.encodePacked('<g id="', rowId, '">');
-                for (uint256 i; i < canvasWidthDots; i++) {
-                    rowDots = abi.encodePacked(
-                        rowDots,
-                        '<circle cx="',
-                        Strings.toString(4 * i + 2),
-                        '" cy="2" r="1.5"></circle>'
-                    );
-                }
-                rowDots = abi.encodePacked(rowDots, "</g>");
-            }
-
-            // <g> row of dots with text height that spans entire canvas width
-            bytes memory textRowDots;
-            {
-                textRowDots = abi.encodePacked('<g id="', textRowId, '">');
-                for (uint256 i; i < canvasWidthDots; i++) {
-                    textRowDots = abi.encodePacked(
-                        textRowDots,
-                        '<use href="#dots1x12" transform="translate(',
-                        Strings.toString(4 * i),
-                        ')"></use>'
-                    );
-                }
-                textRowDots = abi.encodePacked(textRowDots, "</g>");
-            }
-
-            defs = abi.encodePacked(dots1x12, rowDots, textRowDots);
-        }
-
-        bytes memory style;
-        {
-            Font memory font = Font({weight: fontWeight, style: "normal"});
-            bytes memory fontSrc = ITypeface(capsulesTypeface).fontSrc(font);
-            style = abi.encodePacked(
-                '<style>text { font-size: 40px; white-space: pre; } @font-face { font-family: "Capsules-',
-                _fontWeight,
-                '"; src: url(data:font/truetype;charset=utf-8;base64,',
-                fontSrc,
-                ') format("opentype")}</style>'
-            );
-        }
-
-        bytes memory dots;
-        {
-            // Create background of dots as <g> group using <use> elements
-            dots = abi.encodePacked(
-                '<g fill="#',
-                hexColor,
-                '" opacity="0.3"><use href="#',
-                rowId,
-                '"></use>'
-            );
-            for (uint256 i; i < linesCount; i++) {
-                dots = abi.encodePacked(
-                    dots,
-                    '<use href="#',
-                    textRowId,
-                    '" transform="translate(0 ',
-                    Strings.toString(48 * i + 4),
-                    ')"></use>'
-                );
-            }
-            dots = abi.encodePacked(
-                dots,
-                '<use href="#',
-                rowId,
-                '" transform="translate(0 ',
-                Strings.toString((canvasHeightDots - 1) * 4),
-                ')"></use></g>'
-            );
-        }
-
-        // Create <g> group of text elements
-        bytes memory texts;
-        {
-            texts = abi.encodePacked(
-                '<g fill="#',
-                hexColor,
-                '" transform="translate(10 44)">'
-            );
-            for (uint256 i = 0; i < linesCount; i++) {
-                texts = abi.encodePacked(
-                    texts,
-                    '<text y="',
-                    Strings.toString(48 * i),
-                    '" font-family="Capsules-',
-                    _fontWeight,
-                    '">',
-                    safeText[i],
-                    "</text>"
-                );
-            }
-            texts = abi.encodePacked(texts, "</g>");
-        }
-
-        bytes memory svg;
-        {
-            svg = abi.encodePacked(
-                '<svg viewBox="0 0 ',
-                Strings.toString(canvasWidthDots * 4),
-                " ",
-                Strings.toString(canvasHeightDots * 4),
-                '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg"><defs>',
-                defs,
-                "</defs>",
-                style,
-                '<rect x="0" y="0" width="100%" height="100%" fill="#000"></rect>',
-                dots,
-                texts,
-                "</svg>"
-            );
-        }
-
-        image = string(
-            abi.encodePacked("data:image/svg+xml;base64,", Base64.encode(svg))
-        );
-    }
-
-    /// @notice Returns all Capsule data for capsuleId
-    /// @param capsuleId ID of capsule
-    function capsuleOf(uint256 capsuleId)
-        external
-        view
-        returns (Capsule memory capsule)
-    {
-        capsule = Capsule({
-            fontWeight: fontWeightOf[capsuleId],
-            color: colorOf[capsuleId],
-            text: textOf[capsuleId]
-        });
-    }
-
     /// @notice Return token URI for Capsule
-    /// @param capsuleId id of Capsule token
+    /// @param capsuleId ID of Capsule token
+    /// @return metadata for Capsule encoded via capsulesMetadata contract
     function tokenURI(uint256 capsuleId)
         public
         view
@@ -362,43 +171,39 @@ contract CapsulesToken is
     {
         require(_exists(capsuleId), "ERC721A: URI query for nonexistent token");
 
-        bytes16[8] memory text = textOf[capsuleId];
+        return
+            ICapsulesMetadata(capsulesMetadata).tokenUri(capsuleFor(capsuleId));
+    }
 
-        string memory image;
+    /// @notice Returns all Capsule data for capsuleId
+    /// @param capsuleId ID of Capsule
+    /// @return capsule Capsule data for ID capsuleId
+    function capsuleFor(uint256 capsuleId)
+        public
+        view
+        returns (Capsule memory capsule)
+    {
+        capsule = _capsuleFor[capsuleId];
+    }
 
-        // If text contains invalid characters or is not set, use default image
-        if (_isEmptyText(text) || !_isValidText(text)) {
-            image = defaultImageOf(capsuleId);
-        } else {
-            image = imageFor(colorOf[capsuleId], text, fontWeightOf[capsuleId]);
+    /// @notice Check if color is valid for minting
+    /// @dev Returns true if at least one byte == 0xFF (255), AND all byte values are evenly divisible by 5
+    /// @param color color to check validity of
+    /// @return true if color is pure
+    function isPureColor(bytes3 color) public view returns (bool) {
+        for (uint256 i; i < pureColors.length; i++) {
+            if (color == pureColors[i]) return true;
         }
 
-        bytes memory json = abi.encodePacked(
-            '{"name": "Capsule ',
-            Strings.toString(capsuleId),
-            '", "description": "7,957 tokens with unique colors and editable text rendered on-chain. 7 pure colors are reserved for wallets that pay gas to store one of the 7 Capsules font weights in the CapsulesTypeface contract.", "image": "',
-            image,
-            '", "attributes": [{"trait_type": "Color", "value": "#',
-            _bytes3ToHexChars(colorOf[capsuleId]),
-            '"}, {"pure": "',
-            _isReservedColor(colorOf[capsuleId]),
-            "}]}"
-        );
-
-        return
-            string(
-                abi.encodePacked(
-                    "data:application/json;base64,",
-                    Base64.encode(json)
-                )
-            );
+        return false;
     }
 
     /// @notice Mints Capsule to sender
-    /// @dev Requires active sale, min value of `MINT_PRICE`, and unreserved color.
+    /// @dev Requires active sale, min value of `MINT_PRICE`, and impure color
     /// @param color color of Capsule
     /// @param text text of Capsule
     /// @param fontWeight fontWeight of Capsule
+    /// @return capsuleId ID of minted Capsule
     function mint(
         bytes3 color,
         bytes16[8] calldata text,
@@ -406,7 +211,7 @@ contract CapsulesToken is
     )
         external
         payable
-        onlyUnreservedColor(color)
+        onlyImpureColor(color)
         whenNotPaused
         requireMintPrice
         nonReentrant
@@ -416,10 +221,11 @@ contract CapsulesToken is
     }
 
     /// @notice Mints Capsule to sender
-    /// @dev Requires active sale and reserved color.
+    /// @dev Requires active sale and pure color
     /// @param fontWeight fontWeight of Capsule
     /// @param text text of Capsule
-    function mintReservedForFontWeight(
+    /// @return capsuleId ID of minted Capsule
+    function mintPureColorForFontWeight(
         address to,
         uint256 fontWeight,
         bytes16[8] calldata text
@@ -432,7 +238,7 @@ contract CapsulesToken is
     {
         capsuleId = _mintCapsule(
             to,
-            reservedColorForFontWeight(fontWeight),
+            pureColorForFontWeight(fontWeight),
             text,
             fontWeight
         );
@@ -443,13 +249,14 @@ contract CapsulesToken is
     /// @param color color of Capsule
     /// @param text text of Capsule
     /// @param fontWeight fontWeight of Capsule
+    /// @return capsuleId ID of minted Capsule
     function claim(
         bytes3 color,
         bytes16[8] calldata text,
         uint256 fontWeight
     )
         external
-        onlyUnreservedColor(color)
+        onlyImpureColor(color)
         onlyClaimable
         whenNotPaused
         nonReentrant
@@ -471,13 +278,56 @@ contract CapsulesToken is
         emit Withdraw(creatorFeeReceiver, balance);
     }
 
+    /// @notice Returns the pure color for a specific font weight
+    /// @param fontWeight font weight to return pure color for
+    /// @return color for font weight
+    function pureColorForFontWeight(uint256 fontWeight)
+        public
+        view
+        returns (bytes3)
+    {
+        // Map fontWeight to pure color
+        // 100 == pureColors[0]
+        // 200 == pureColors[1]
+        // 300 == pureColors[2]
+        // ...
+        bytes3 color = pureColors[(fontWeight / 100) - 1];
+
+        return color;
+    }
+
+    /// @notice EIP2981 royalty standard
+    function royaltyInfo(uint256, uint256 salePrice)
+        external
+        view
+        returns (address receiver, uint256 royaltyAmount)
+    {
+        return (payable(this), (salePrice * royalty) / 1000);
+    }
+
+    /// @notice EIP2981 standard Interface return. Adds to ERC721A Interface returns.
+    /// @dev See {IERC165-supportsInterface}.
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165, ERC721A)
+        returns (bool)
+    {
+        return
+            interfaceId == type(IERC2981).interfaceId ||
+            super.supportsInterface(interfaceId);
+    }
+
+    /// @dev Allows contract to receive ETH
+    receive() external payable {}
+
     /* -------------------------------------------------------------------------- */
     /* ------------------------ CAPSULE OWNER FUNCTIONS ------------------------- */
     /* -------------------------------------------------------------------------- */
 
     /// @notice Allows owner of Capsule to update the Capsule text
-    /// @dev Must send at least the value of `textEditFee`
-    /// @param capsuleId id of Capsule token
+    /// @param capsuleId ID of Capsule token
     /// @param text new text for Capsule
     /// @param fontWeight new font weight for Capsule
     function editCapsule(
@@ -491,14 +341,18 @@ contract CapsulesToken is
         onlyValidFontWeight(fontWeight)
         nonReentrant
     {
-        textOf[capsuleId] = text;
-        fontWeightOf[capsuleId] = fontWeight;
+        _capsuleFor[capsuleId] = Capsule({
+            id: capsuleId,
+            color: capsuleFor(capsuleId).color,
+            text: text,
+            fontWeight: fontWeight
+        });
 
         emit EditCapsule(capsuleId, text, fontWeight);
     }
 
     /// @notice Burn a Capsule
-    /// @param capsuleId id of Capsule token
+    /// @param capsuleId ID of Capsule token
     function burn(uint256 capsuleId)
         external
         onlyCapsuleOwner(capsuleId)
@@ -507,12 +361,29 @@ contract CapsulesToken is
         _burn(capsuleId);
     }
 
-    /// @dev Allows contract to receive ETH
-    receive() external payable {}
+    /* -------------------------------------------------------------------------- */
+    /* ---------------------------- ADMIN FUNCTIONS ----------------------------- */
+    /* -------------------------------------------------------------------------- */
 
-    /* -------------------------------------------------------------------------- */
-    /* ---------------------------- OWNER FUNCTIONS ----------------------------- */
-    /* -------------------------------------------------------------------------- */
+    /// @notice Allows the owner to update royalty amount
+    /// @param _capsulesMetadata new CapsulesMetadata contract
+    function setCapsulesMetadata(address _capsulesMetadata)
+        external
+        onlyOwner
+        onlyIfMetadataUnlocked
+    {
+        // TODO IERC165 check interface
+        capsulesMetadata = _capsulesMetadata;
+
+        emit SetCapsulesMetadata(_capsulesMetadata);
+    }
+
+    /// @notice Allows the owner to update royalty amount
+    function lockMetadata() external onlyOwner onlyIfMetadataUnlocked {
+        metadataLocked = true;
+
+        emit LockMetadata();
+    }
 
     /// @notice Allows the owner to update creatorFeeReceiver
     /// @param _creatorFeeReceiver address of new creatorFeeReceiver
@@ -541,30 +412,11 @@ contract CapsulesToken is
     /// @notice Allows the owner to update royalty amount
     /// @param _royalty new royalty amount
     function setRoyalty(uint256 _royalty) external onlyOwner {
-        require(_royalty <= 1000);
+        require(_royalty <= 1000, "Amount too high");
 
         royalty = _royalty;
 
         emit SetRoyalty(_royalty);
-    }
-
-    /// @notice Returns the reserved color for a specific font weight
-    /// @param fontWeight font weight
-    function reservedColorForFontWeight(uint256 fontWeight)
-        public
-        view
-        returns (bytes3)
-    {
-        // Map fontWeight to reserved color
-        // 100 == reservedColors[0]
-        // 200 == reservedColors[1]
-        // 300 == reservedColors[2]
-        // ...
-        bytes3 color = reservedColors[(fontWeight / 100) - 1];
-
-        assert(_isReservedColor(color));
-
-        return color;
     }
 
     /// @notice Pause contract
@@ -579,29 +431,6 @@ contract CapsulesToken is
         _unpause();
     }
 
-    /// @notice EIP2981 royalty standard
-    function royaltyInfo(uint256, uint256 salePrice)
-        external
-        view
-        returns (address receiver, uint256 royaltyAmount)
-    {
-        return (payable(this), (salePrice * royalty) / 1000);
-    }
-
-    /// @notice EIP2981 standard Interface return. Adds to ERC721A Interface returns.
-    /// @dev See {IERC165-supportsInterface}.
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(IERC165, ERC721A)
-        returns (bool)
-    {
-        return
-            interfaceId == type(IERC2981).interfaceId ||
-            super.supportsInterface(interfaceId);
-    }
-
     /* -------------------------------------------------------------------------- */
     /* --------------------------- INTERNAL FUNCTIONS --------------------------- */
     /* -------------------------------------------------------------------------- */
@@ -612,7 +441,7 @@ contract CapsulesToken is
     }
 
     /// @notice Mints Capsule
-    /// @dev Stores `colorOf` and reverse mapping `tokenOfColor`
+    /// @dev Stores Capsule data in `_capsuleFor`, and mapping `capsuleForColor`
     /// @param color color of Capsule
     /// @param text text of Capsule
     /// @param fontWeight fontWeight of Capsule
@@ -632,10 +461,14 @@ contract CapsulesToken is
 
         capsuleId = _currentIndex - 1;
 
-        colorOf[capsuleId] = color;
-        tokenOfColor[color] = capsuleId;
-        textOf[capsuleId] = text;
-        fontWeightOf[capsuleId] = fontWeight;
+        capsuleForColor[color] = capsuleId;
+
+        _capsuleFor[capsuleId] = Capsule({
+            id: capsuleId,
+            color: color,
+            text: text,
+            fontWeight: fontWeight
+        });
 
         emit MintCapsule(capsuleId, to, color, text, fontWeight);
     }
@@ -643,6 +476,7 @@ contract CapsulesToken is
     /// @notice Check if text is valid
     /// @dev Only allows bytes allowed by CapsulesTypeface, and 0x00. 0x00 characters are treated as spaces. A text that has not been set yet will contain only 0x00 bytes
     /// @param text text to check validity of
+    /// @return true if text is valid
     function _isValidText(bytes16[8] memory text) internal view returns (bool) {
         for (uint256 i; i < 8; i++) {
             bytes16 line = text[i];
@@ -712,89 +546,5 @@ contract CapsulesToken is
         }
 
         return true;
-    }
-
-    /// @notice Check if color is valid for minting
-    /// @dev Returns true if at least one byte == 0xFF (255), AND all byte values are evenly divisible by 5
-    /// @param color color to check validity of
-    function _isReservedColor(bytes3 color) internal view returns (bool) {
-        for (uint256 i; i < reservedColors.length; i++) {
-            if (color == reservedColors[i]) return true;
-        }
-
-        return false;
-    }
-
-    /// @notice Returns html-safe version of text
-    /// @dev Iterates through bytes of each line in `text` and replaces each byte as needed
-    /// @param text text to format
-    function _htmlSafeText(bytes16[8] memory text)
-        internal
-        pure
-        returns (bytes[8] memory safeText)
-    {
-        // Some bytes may not render properly in SVG text, so we replace them with their matching 'html name code'
-        for (uint16 i; i < 8; i++) {
-            bool shouldTrim = true;
-
-            // Build bytes in reverse to allow trimming trailing whitespace
-            for (uint16 j = 16; j > 0; j--) {
-                if (text[i][j - 1] != 0x00 && shouldTrim) shouldTrim = false;
-
-                if (text[i][j - 1] == 0x3c) {
-                    // Replace `<`
-                    safeText[i] = abi.encodePacked("&lt;", safeText[i]);
-                } else if (text[i][j - 1] == 0x3E) {
-                    // Replace `>`
-                    safeText[i] = abi.encodePacked("&gt;", safeText[i]);
-                } else if (text[i][j - 1] == 0x26) {
-                    // Replace `&`
-                    safeText[i] = abi.encodePacked("&amp;", safeText[i]);
-                } else if (text[i][j - 1] == 0x00) {
-                    // If whitespace has been trimmed, replace `0x00` with space
-                    // Else, add nothing
-                    if (!shouldTrim) {
-                        safeText[i] = abi.encodePacked(
-                            bytes1(0x20),
-                            safeText[i]
-                        );
-                    }
-                } else {
-                    // Add unchanged byte
-                    safeText[i] = abi.encodePacked(text[i][j - 1], safeText[i]);
-                }
-            }
-        }
-    }
-
-    /// @notice Format bytes3 type to 6 hexadecimal ascii bytes
-    function _bytes3ToHexChars(bytes3 b)
-        internal
-        pure
-        returns (bytes memory o)
-    {
-        uint24 i = uint24(b);
-        o = new bytes(6);
-        uint24 mask = 0x00000f;
-        o[5] = _uint8toByte(uint8(i & mask));
-        i = i >> 4;
-        o[4] = _uint8toByte(uint8(i & mask));
-        i = i >> 4;
-        o[3] = _uint8toByte(uint8(i & mask));
-        i = i >> 4;
-        o[2] = _uint8toByte(uint8(i & mask));
-        i = i >> 4;
-        o[1] = _uint8toByte(uint8(i & mask));
-        i = i >> 4;
-        o[0] = _uint8toByte(uint8(i & mask));
-    }
-
-    /// @notice Convert uint8 type to ascii byte
-    function _uint8toByte(uint8 i) internal pure returns (bytes1 b) {
-        uint8 _i = (i > 9)
-            ? (i + 87) // ascii a-f
-            : (i + 48); // ascii 0-9
-
-        b = bytes1(_i);
     }
 }

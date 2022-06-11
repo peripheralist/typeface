@@ -7,7 +7,8 @@
     "deploy-rinkeby": "hardhat run scripts/deploy.ts --network rinkeby",
     "deploy-kovan": "hardhat run scripts/deploy.ts --network kovan",
     "deploy-goerli": "hardhat run scripts/deploy.ts --network goerli",
-    "deploy-mainnet": "hardhat run scripts/deploy.ts --network mainnet"
+    "deploy-mainnet": "hardhat run scripts/deploy.ts --network mainnet",
+    "test": "npx hardhat test"
   },
   "dependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",

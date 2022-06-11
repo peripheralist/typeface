@@ -6,7 +6,7 @@ import { ethers } from "hardhat";
 
 import { fonts } from "../fonts";
 import { reservedColors } from "../reservedColors";
-import { CapsulesToken } from "../typechain-types";
+import { CapsulesMetadata, CapsulesToken } from "../typechain-types";
 import { CapsulesTypeface } from "../typechain-types/CapsulesTypeface";
 import { capsulesToken, capsulesTypeface } from "./Capsules";
 
@@ -128,9 +128,7 @@ export async function wallets() {
   return { deployer, owner, feeReceiver, minter1, minter2, friend1 };
 }
 
-export async function deployCapsulesTypeface() {
-  const { deployer } = await wallets();
-
+export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
   const _fonts = Object.keys(fonts).map((weight) => ({
     weight: parseInt(weight) as keyof typeof fonts,
     style: "normal",
@@ -141,18 +139,11 @@ export async function deployCapsulesTypeface() {
 
   console.log("fonts", { _fonts, hashes });
 
-  const nonce = await deployer.getTransactionCount();
-  const nonceOffset = 1;
-  const expectedCapsulesTokenAddress = ethers.utils.getContractAddress({
-    from: deployer.address,
-    nonce: nonce + nonceOffset,
-  });
-
   const CapsulesTypeface = await ethers.getContractFactory("CapsulesTypeface");
   const capsulesTypeface = (await CapsulesTypeface.deploy(
     _fonts,
     hashes,
-    expectedCapsulesTokenAddress
+    capsulesTokenAddress
   )) as CapsulesTypeface;
 
   const x = await capsulesTypeface.deployTransaction.wait();
@@ -168,7 +159,10 @@ export async function deployCapsulesTypeface() {
   return capsulesTypeface;
 }
 
-export async function deployCapsulesToken(capsulesTypefaceAddress: string) {
+export async function deployCapsulesToken(
+  capsulesTypefaceAddress: string,
+  capsulesMetadataAddress: string
+) {
   const { feeReceiver, owner } = await wallets();
   const Capsules = await ethers.getContractFactory("CapsulesToken");
 
@@ -176,6 +170,7 @@ export async function deployCapsulesToken(capsulesTypefaceAddress: string) {
 
   const capsules = (await Capsules.deploy(
     capsulesTypefaceAddress,
+    capsulesMetadataAddress,
     feeReceiver.address,
     reservedColors,
     royalty
@@ -188,6 +183,26 @@ export async function deployCapsulesToken(capsulesTypefaceAddress: string) {
   );
 
   return capsules;
+}
+
+export async function deployCapsulesMetadata(
+  capsulesTokenAddress: string,
+  capsulesTypefaceAddress: string
+) {
+  const CapsulesMetadata = await ethers.getContractFactory("CapsulesMetadata");
+
+  const capsulesMetadata = (await CapsulesMetadata.deploy(
+    capsulesTokenAddress,
+    capsulesTypefaceAddress
+  )) as CapsulesMetadata;
+
+  console.log(
+    indent +
+      "Deployed CapsulesMetadata " +
+      chalk.magenta(capsulesMetadata.address)
+  );
+
+  return capsulesMetadata;
 }
 
 export const capsulesContract = (signer?: Signer) =>

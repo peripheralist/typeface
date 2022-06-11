@@ -26,5 +26,13 @@ interface ITypeface {
      */
     function fontSrc(Font memory font) external view returns (bytes memory);
 
+    /**
+     * @notice Returns the address to receive any royalties.
+     */
+    function royaltyAddress() external view returns (address);
+
+    /**
+     * @notice Sets the src bytes for a font
+     */
     function setFontSrc(Font memory font, bytes memory src) external;
 }

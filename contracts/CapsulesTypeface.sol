@@ -15,7 +15,7 @@ contract CapsulesTypeface is Typeface {
         Font[] memory fonts,
         bytes32[] memory hashes,
         address _capsulesToken
-    ) Typeface("Capsules") {
+    ) Typeface("Capsules", _capsulesToken) {
         setFontSrcHash(fonts, hashes);
 
         capsulesToken = ICapsulesToken(_capsulesToken);
@@ -28,7 +28,7 @@ contract CapsulesTypeface is Typeface {
         return b >= 0x20 && b <= 0x7E;
     }
 
-    /// @notice Mint reserved Capsule token to caller when caller sets fontSrc
+    /// @notice Mint pure color Capsule token to caller when caller sets fontSrc
     function afterSetFontSrc(Font memory font, bytes memory)
         internal
         override(Typeface)
@@ -36,6 +36,6 @@ contract CapsulesTypeface is Typeface {
         // Empty text
         bytes16[8] memory text;
 
-        capsulesToken.mintReservedForFontWeight(msg.sender, font.weight, text);
+        capsulesToken.mintPureColorForFontWeight(msg.sender, font.weight, text);
     }
 }

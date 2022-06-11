@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 struct Capsule {
+    uint256 id;
     bytes3 color;
     uint256 fontWeight;
     bytes16[8] text;
@@ -28,28 +29,21 @@ interface ICapsulesToken {
         bytes16[8] text,
         uint256 fontWeight
     );
+    event SetCapsulesMetadata(address _capsulesMetadata);
     event SetCreatorFeeReceiver(address _address);
     event SetClaimCount(address indexed _address, uint256 number);
-    event SetReservedColors(bytes3[] colors);
+    event SetPureColors(bytes3[] colors);
     event SetRoyalty(uint256 royalty);
+    event LockMetadata();
     event EditCapsule(uint256 indexed id, bytes16[8] text, uint256 fontWeight);
     event Withdraw(address to, uint256 amount);
 
-    function defaultImageOf(uint256 capsuleId)
-        external
-        view
-        returns (string memory);
-
-    function imageFor(
-        bytes3 color,
-        bytes16[8] memory text,
-        uint256 fontWeight
-    ) external view returns (string memory);
-
-    function capsuleOf(uint256 capsuleId)
+    function capsuleFor(uint256 capsuleId)
         external
         view
         returns (Capsule memory capsule);
+
+    function isPureColor(bytes3 color) external view returns (bool);
 
     function mint(
         bytes3 color,
@@ -57,7 +51,7 @@ interface ICapsulesToken {
         uint256 fontWeight
     ) external payable returns (uint256);
 
-    function mintReservedForFontWeight(
+    function mintPureColorForFontWeight(
         address to,
         uint256 fontWeight,
         bytes16[8] calldata text
@@ -78,6 +72,8 @@ interface ICapsulesToken {
     ) external;
 
     function burn(uint256 capsuleId) external;
+
+    function setCapsulesMetadata(address _capsulesMetadata) external;
 
     function setCreatorFeeReceiver(address _creatorFeeReceiver) external;
 
