@@ -72,7 +72,7 @@ export async function skipToBlockNumber(seconds: number) {
   await ethers.provider.send("evm_mine", [seconds]);
 }
 
-export async function mintValidCapsules(signer: Signer, count?: number) {
+export async function mintValidUnlockedCapsules(signer: Signer, count?: number) {
   let hexes: string[] = [];
 
   const capsules = capsulesContract(signer);
@@ -106,7 +106,7 @@ export async function mintValidCapsules(signer: Signer, count?: number) {
 
   for (let i = 0; i < _count; i++) {
     await capsules
-      .mint(validHexes[i], emptyNote, 400, {
+      .mint(validHexes[i], emptyNote, 400, false, {
         value: mintPrice,
         gasLimit: 30000000,
       })
@@ -186,13 +186,11 @@ export async function deployCapsulesToken(
 }
 
 export async function deployCapsulesMetadata(
-  capsulesTokenAddress: string,
   capsulesTypefaceAddress: string
 ) {
   const CapsulesMetadata = await ethers.getContractFactory("CapsulesMetadata");
 
   const capsulesMetadata = (await CapsulesMetadata.deploy(
-    capsulesTokenAddress,
     capsulesTypefaceAddress
   )) as CapsulesMetadata;
 

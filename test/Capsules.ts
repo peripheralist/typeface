@@ -16,7 +16,7 @@ import {
   emptyNote,
   formatBytes16,
   mintPrice,
-  mintValidCapsules,
+  mintValidUnlockedCapsules,
   totalSupply,
   wallets,
 } from "./utils";
@@ -51,7 +51,6 @@ describe("Capsules", async () => {
     );
 
     capsulesMetadata = await deployCapsulesMetadata(
-      capsulesToken.address,
       capsulesTypeface.address
     );
   });
@@ -72,9 +71,6 @@ describe("Capsules", async () => {
         capsulesToken.address
       );
 
-      expect(await capsulesMetadata.capsulesToken()).to.equal(
-        capsulesToken.address
-      );
       expect(await capsulesMetadata.capsulesTypeface()).to.equal(
         capsulesTypeface.address
       );
@@ -205,21 +201,21 @@ describe("Capsules", async () => {
       const { minter1 } = await wallets();
 
       await expect(
-        capsulesContract(minter1).claim("0xff0005", emptyNote, 400)
+        capsulesContract(minter1).claim("0xff0005", emptyNote, 400, false)
       ).to.be.revertedWith("NoClaimableTokens()");
     });
 
     it("Claim should succeed for non-friend", async () => {
       const { friend1 } = await wallets();
 
-      await capsulesContract(friend1).claim("0xff0005", emptyNote, 400);
+      await capsulesContract(friend1).claim("0xff0005", emptyNote, 400, false);
     });
 
     it("Claim should fail if friend already claimed all claimable tokens", async () => {
       const { friend1 } = await wallets();
 
       await expect(
-        capsulesContract(friend1).claim("0xff00a0", emptyNote, 400)
+        capsulesContract(friend1).claim("0xff00a0", emptyNote, 400, false)
       ).to.be.revertedWith("NoClaimableTokens()");
     });
   });
@@ -229,7 +225,7 @@ describe("Capsules", async () => {
       const { minter1 } = await wallets();
 
       await expect(
-        capsulesContract(minter1).mint("0x0005ff", emptyNote, 100, {
+        capsulesContract(minter1).mint("0x0005ff", emptyNote, 100, false, {
           value: mintPrice,
         })
       ).to.be.revertedWith("InvalidFontWeight()");
@@ -239,7 +235,7 @@ describe("Capsules", async () => {
       const { minter1 } = await wallets();
 
       await expect(
-        capsulesContract(minter1).mint("0x0000fe", emptyNote, 400, {
+        capsulesContract(minter1).mint("0x0000fe", emptyNote, 400, false, {
           value: mintPrice,
         })
       ).to.be.revertedWith("InvalidColor()");
@@ -249,7 +245,7 @@ describe("Capsules", async () => {
       const { owner } = await wallets();
 
       await expect(
-        capsulesContract(owner).mint("0x0005ff", emptyNote, 400, {
+        capsulesContract(owner).mint("0x0005ff", emptyNote, 400, false, {
           value: mintPrice.sub(1),
         })
       ).to.be.revertedWith("ValueBelowMintPrice()");
@@ -259,7 +255,7 @@ describe("Capsules", async () => {
       const { minter1 } = await wallets();
 
       await expect(
-        capsulesContract(minter1).mint("0x0000ff", emptyNote, 400, {
+        capsulesContract(minter1).mint("0x0000ff", emptyNote, 400, false, {
           value: mintPrice,
         })
       ).to.be.revertedWith("PureColorNotAllowed()");
@@ -275,7 +271,7 @@ describe("Capsules", async () => {
       const color = "0x0005ff";
 
       await expect(
-        minter1Capsules.mint(color, emptyNote, fontWeight, {
+        minter1Capsules.mint(color, emptyNote, fontWeight, false, {
           value: mintPrice,
         })
       )
@@ -304,7 +300,7 @@ describe("Capsules", async () => {
       const color = "0x0005ff";
 
       await expect(
-        minter1Capsules.mint(color, emptyNote, 400, {
+        minter1Capsules.mint(color, emptyNote, 400, false, {
           value: mintPrice,
         })
       ).to.be.revertedWith(
@@ -320,7 +316,7 @@ describe("Capsules", async () => {
       expect(await capsulesToken.ownerOf(id)).to.not.equal(minter2.address);
 
       await expect(
-        capsulesContract(minter2).editCapsule(id, emptyNote, 400)
+        capsulesContract(minter2).editCapsule(id, emptyNote, 400, false)
       ).to.be.revertedWith(
         `NotCapsuleOwner("${await capsulesToken.ownerOf(id)}")`
       );
@@ -333,7 +329,7 @@ describe("Capsules", async () => {
 
       expect(await capsulesToken.ownerOf(id)).to.equal(minter1.address);
 
-      await capsulesContract(minter1).editCapsule(id, emptyNote, 400);
+      await capsulesContract(minter1).editCapsule(id, emptyNote, 400, false);
     });
 
     it("Set invalid font weight should revert", async () => {
@@ -342,7 +338,7 @@ describe("Capsules", async () => {
       const id = 3;
 
       await expect(
-        capsulesContract(minter1).editCapsule(id, emptyNote, 69)
+        capsulesContract(minter1).editCapsule(id, emptyNote, 69, false)
       ).to.be.revertedWith("InvalidFontWeight()");
     });
 
@@ -364,7 +360,8 @@ describe("Capsules", async () => {
             formatBytes16("> max length 15"),
             formatBytes16("> max length 15"),
           ],
-          400
+          400,
+          false
         )
       ).to.be.revertedWith("InvalidText()");
     });
@@ -372,7 +369,7 @@ describe("Capsules", async () => {
     // it("Should mint all capsules", async () => {
     //   const { minter2 } = await wallets();
 
-    //   await mintValidCapsules(minter2);
+    //   await mintValidUnlockedCapsules(minter2);
     // });
 
     it("Should withdraw balance to fee receiver", async () => {

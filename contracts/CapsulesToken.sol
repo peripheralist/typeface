@@ -25,6 +25,7 @@ error NotCapsulesTypeface();
 error NoClaimableTokens();
 error ColorAlreadyMinted(uint256 capsuleId);
 error NotCapsuleOwner(address owner);
+error CapsuleLocked();
 error CapsuleMetadataLocked();
 
 contract CapsulesToken is
@@ -38,6 +39,11 @@ contract CapsulesToken is
     /* -------------------------------------------------------------------------- */
     /* -------------------------------- MODIFIERS ------------------------------- */
     /* -------------------------------------------------------------------------- */
+    /*       O   O   OOO   OOOO   OOOOO  OOOOO  OOOOO  OOOOO  OOOO    OOOO        */
+    /*       OO OO  O   O  O   O    O    O        O    O      O   O  O            */
+    /*       O O O  O   O  O   O    O    OOOOO    O    OOOOO  OOOO    OOO         */
+    /*       O   O  O   O  O   O    O    O        O    O      O O        O        */
+    /*       O   O   OOO   OOOO   OOOOO  O      OOOOO  OOOOO  O  O   OOOO         */
 
     /// @notice Require that the value sent is at least MINT_PRICE
     modifier requireMintPrice() {
@@ -78,6 +84,12 @@ contract CapsulesToken is
     /// @notice Require that the color is valid
     modifier onlyClaimable() {
         if (claimCount[msg.sender] < 1) revert NoClaimableTokens();
+        _;
+    }
+
+    /// @notice Require that the capsule is unlocked
+    modifier onlyUnlockedCapsule(uint256 capsuleId) {
+        if (isLocked(capsuleId)) revert CapsuleLocked();
         _;
     }
 
@@ -142,7 +154,10 @@ contract CapsulesToken is
     mapping(bytes3 => uint256) public capsuleForColor;
 
     /// Mapping of capsuleId to Capsule data
-    mapping(uint256 => Capsule) public _capsuleFor;
+    mapping(uint256 => Capsule) internal _capsuleFor;
+
+    /// Mapping of capsuleId to locked state
+    mapping(uint256 => bool) internal _locked;
 
     /// Array of pure colors
     bytes3[] pureColors;
@@ -175,6 +190,14 @@ contract CapsulesToken is
             ICapsulesMetadata(capsulesMetadata).tokenUri(capsuleFor(capsuleId));
     }
 
+    /// @notice Return image of Capsule
+    /// @param capsuleId ID of Capsule token
+    /// @return image Image of Capsule
+    function imageOf(uint256 capsuleId) public view returns (string memory) {
+        return
+            ICapsulesMetadata(capsulesMetadata).imageOf(capsuleFor(capsuleId));
+    }
+
     /// @notice Returns all Capsule data for capsuleId
     /// @param capsuleId ID of Capsule
     /// @return capsule Capsule data for ID capsuleId
@@ -198,16 +221,25 @@ contract CapsulesToken is
         return false;
     }
 
+    /// @notice Check if Capsule is locked
+    /// @param capsuleId ID of Capsule
+    /// @return true if Capsule is locked
+    function isLocked(uint256 capsuleId) public view returns (bool) {
+        return _locked[capsuleId];
+    }
+
     /// @notice Mints Capsule to sender
     /// @dev Requires active sale, min value of `MINT_PRICE`, and impure color
-    /// @param color color of Capsule
-    /// @param text text of Capsule
-    /// @param fontWeight fontWeight of Capsule
+    /// @param color Color of Capsule
+    /// @param text Text of Capsule
+    /// @param fontWeight FontWeight of Capsule
+    /// @param lock Lock Capsule (irreversible)
     /// @return capsuleId ID of minted Capsule
     function mint(
         bytes3 color,
         bytes16[8] calldata text,
-        uint256 fontWeight
+        uint256 fontWeight,
+        bool lock
     )
         external
         payable
@@ -217,11 +249,11 @@ contract CapsulesToken is
         nonReentrant
         returns (uint256 capsuleId)
     {
-        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight);
+        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight, lock);
     }
 
     /// @notice Mints Capsule to sender
-    /// @dev Requires active sale and pure color
+    /// @dev Requires active sale and pure color. No option to lock Capsule
     /// @param fontWeight fontWeight of Capsule
     /// @param text text of Capsule
     /// @return capsuleId ID of minted Capsule
@@ -240,20 +272,23 @@ contract CapsulesToken is
             to,
             pureColorForFontWeight(fontWeight),
             text,
-            fontWeight
+            fontWeight,
+            false
         );
     }
 
     /// @notice Allows address on claim list to mint Capsule
     /// @dev Requires active sale and for msg.sender to be on friends list.
-    /// @param color color of Capsule
-    /// @param text text of Capsule
-    /// @param fontWeight fontWeight of Capsule
+    /// @param color Color of Capsule
+    /// @param text Text of Capsule
+    /// @param fontWeight FontWeight of Capsule
+    /// @param lock Lock Capsule (irreversible)
     /// @return capsuleId ID of minted Capsule
     function claim(
         bytes3 color,
         bytes16[8] calldata text,
-        uint256 fontWeight
+        uint256 fontWeight,
+        bool lock
     )
         external
         onlyImpureColor(color)
@@ -264,9 +299,18 @@ contract CapsulesToken is
     {
         claimCount[msg.sender]--;
 
-        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight);
+        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight, lock);
 
         emit ClaimCapsule(capsuleId, msg.sender, color, text, fontWeight);
+    }
+
+    /// @notice Allows Capsule owner to permanently lock the Capsule, preventing it from being edited
+    function lockCapsule(uint256 capsuleId)
+        external
+        onlyCapsuleOwner(capsuleId)
+        nonReentrant
+    {
+        _lockCapsule(capsuleId);
     }
 
     /// @notice Withdraws up to 50% of revenue from primary mint to the fee receiver
@@ -333,22 +377,30 @@ contract CapsulesToken is
     function editCapsule(
         uint256 capsuleId,
         bytes16[8] calldata text,
-        uint256 fontWeight
+        uint256 fontWeight,
+        bool lock
     )
         public
         onlyCapsuleOwner(capsuleId)
+        onlyUnlockedCapsule(capsuleId)
         onlyValidText(text)
         onlyValidFontWeight(fontWeight)
         nonReentrant
     {
+        Capsule memory capsule = _capsuleFor[capsuleId];
+
         _capsuleFor[capsuleId] = Capsule({
             id: capsuleId,
-            color: capsuleFor(capsuleId).color,
+            color: capsule.color,
             text: text,
-            fontWeight: fontWeight
+            fontWeight: fontWeight,
+            isPure: isPureColor(capsule.color),
+            isLocked: lock
         });
 
         emit EditCapsule(capsuleId, text, fontWeight);
+
+        if (lock) _lockCapsule(capsuleId);
     }
 
     /// @notice Burn a Capsule
@@ -378,7 +430,7 @@ contract CapsulesToken is
         emit SetCapsulesMetadata(_capsulesMetadata);
     }
 
-    /// @notice Allows the owner to update royalty amount
+    /// @notice Allows the owner to permanently prevent CapsulesMetadata from being updated
     function lockMetadata() external onlyOwner onlyIfMetadataUnlocked {
         metadataLocked = true;
 
@@ -442,14 +494,16 @@ contract CapsulesToken is
 
     /// @notice Mints Capsule
     /// @dev Stores Capsule data in `_capsuleFor`, and mapping `capsuleForColor`
-    /// @param color color of Capsule
-    /// @param text text of Capsule
-    /// @param fontWeight fontWeight of Capsule
+    /// @param color Color of Capsule
+    /// @param text Text of Capsule
+    /// @param fontWeight FontWeight of Capsule
+    /// @param lock Lock Capsule (irreversible)
     function _mintCapsule(
         address to,
         bytes3 color,
         bytes16[8] calldata text,
-        uint256 fontWeight
+        uint256 fontWeight,
+        bool lock
     )
         internal
         onlyValidColor(color)
@@ -467,10 +521,22 @@ contract CapsulesToken is
             id: capsuleId,
             color: color,
             text: text,
-            fontWeight: fontWeight
+            fontWeight: fontWeight,
+            isPure: isPureColor(color),
+            isLocked: lock
         });
 
         emit MintCapsule(capsuleId, to, color, text, fontWeight);
+
+        if (lock) _lockCapsule(capsuleId);
+    }
+
+    function _lockCapsule(uint256 capsuleId)
+        internal
+        onlyUnlockedCapsule(capsuleId)
+    {
+        _locked[capsuleId] = true;
+        emit LockCapsule(capsuleId);
     }
 
     /// @notice Check if text is valid

@@ -11,4 +11,9 @@ interface ICapsulesMetadata {
         external
         view
         returns (string memory);
+
+    function imageOf(Capsule memory capsule)
+        external
+        view
+        returns (string memory);
 }
