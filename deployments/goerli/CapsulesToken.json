@@ -1,5 +1,5 @@
 {
-      "address": "0xF7B425ef840c461A297289029283704259c88A3A", 
+      "address": "0x8cF03af991dF828f025e635D5FbC6500234d1603", 
       "abi": [
   {
     "inputs": [
@@ -10,12 +10,17 @@
       },
       {
         "internalType": "address",
+        "name": "_capsulesMetadata",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
         "name": "_creatorFeeReceiver",
         "type": "address"
       },
       {
         "internalType": "bytes3[]",
-        "name": "_reservedColors",
+        "name": "_pureColors",
         "type": "bytes3[]"
       },
       {
@@ -54,6 +59,42 @@
   },
   {
     "inputs": [],
+    "name": "CapsuleLocked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CapsuleMetadataLocked",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ColorAlreadyMinted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidColor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidFontWeight",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidText",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MintToZeroAddress",
     "type": "error"
   },
@@ -64,7 +105,33 @@
   },
   {
     "inputs": [],
+    "name": "NoClaimableTokens",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "NotCapsuleOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotCapsulesTypeface",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "OwnerQueryForNonexistentToken",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PureColorNotAllowed",
     "type": "error"
   },
   {
@@ -85,6 +152,11 @@
   {
     "inputs": [],
     "name": "TransferToZeroAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ValueBelowMintPrice",
     "type": "error"
   },
   {
@@ -203,6 +275,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "LockCapsule",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [],
+    "name": "LockMetadata",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "id",
@@ -272,6 +363,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_capsulesMetadata",
+        "type": "address"
+      }
+    ],
+    "name": "SetCapsulesMetadata",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "_address",
@@ -310,7 +414,7 @@
         "type": "bytes3[]"
       }
     ],
-    "name": "SetReservedColors",
+    "name": "SetPureColors",
     "type": "event"
   },
   {
@@ -454,10 +558,15 @@
         "type": "uint256"
       }
     ],
-    "name": "capsuleOf",
+    "name": "capsuleFor",
     "outputs": [
       {
         "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
           {
             "internalType": "bytes3",
             "name": "color",
@@ -472,11 +581,53 @@
             "internalType": "bytes16[8]",
             "name": "text",
             "type": "bytes16[8]"
+          },
+          {
+            "internalType": "bool",
+            "name": "isPure",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLocked",
+            "type": "bool"
           }
         ],
         "internalType": "struct Capsule",
         "name": "capsule",
         "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes3",
+        "name": "",
+        "type": "bytes3"
+      }
+    ],
+    "name": "capsuleForColor",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "capsulesMetadata",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -511,6 +662,11 @@
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "lock",
+        "type": "bool"
       }
     ],
     "name": "claim",
@@ -544,25 +700,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "colorOf",
-    "outputs": [
-      {
-        "internalType": "bytes3",
-        "name": "",
-        "type": "bytes3"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "creatorFeeReceiver",
     "outputs": [
@@ -581,25 +718,6 @@
         "internalType": "uint256",
         "name": "capsuleId",
         "type": "uint256"
-      }
-    ],
-    "name": "defaultImageOf",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "image",
-        "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "capsuleId",
-        "type": "uint256"
       },
       {
         "internalType": "bytes16[8]",
@@ -610,30 +728,16 @@
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "lock",
+        "type": "bool"
       }
     ],
     "name": "editCapsule",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "fontWeightOf",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -650,35 +754,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes3",
-        "name": "color",
-        "type": "bytes3"
-      },
-      {
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "fontWeight",
-        "type": "uint256"
-      }
-    ],
-    "name": "imageFor",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "image",
-        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -711,6 +786,77 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "isLocked",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes3",
+        "name": "color",
+        "type": "bytes3"
+      }
+    ],
+    "name": "isPureColor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "lockCapsule",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "lockMetadata",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "metadataLocked",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes3",
         "name": "color",
         "type": "bytes3"
@@ -724,6 +870,11 @@
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "lock",
+        "type": "bool"
       }
     ],
     "name": "mint",
@@ -755,7 +906,7 @@
         "type": "bytes16[8]"
       }
     ],
-    "name": "mintReservedForFontWeight",
+    "name": "mintPureColorForFontWeight",
     "outputs": [
       {
         "internalType": "uint256",
@@ -832,13 +983,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -846,7 +990,7 @@
         "type": "uint256"
       }
     ],
-    "name": "reservedColorForFontWeight",
+    "name": "pureColorForFontWeight",
     "outputs": [
       {
         "internalType": "bytes3",
@@ -855,6 +999,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -971,6 +1122,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "_capsulesMetadata",
+        "type": "address"
+      }
+    ],
+    "name": "setCapsulesMetadata",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address[]",
         "name": "recievers",
         "type": "address[]"
@@ -1032,8 +1196,19 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "symbol",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "square",
+        "type": "bool"
+      }
+    ],
+    "name": "svgOf",
     "outputs": [
       {
         "internalType": "string",
@@ -1045,43 +1220,13 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "name": "textOf",
+    "inputs": [],
+    "name": "symbol",
     "outputs": [
       {
-        "internalType": "bytes16",
+        "internalType": "string",
         "name": "",
-        "type": "bytes16"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes3",
-        "name": "",
-        "type": "bytes3"
-      }
-    ],
-    "name": "tokenOfColor",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
+        "type": "string"
       }
     ],
     "stateMutability": "view",

@@ -1,5 +1,5 @@
 {
-      "address": "0x99B883fb843c9bddc99da2683265E50bd41efF3C", 
+      "address": "0xB73d13CEF5bc02531C253CDc5954b98AF425FB1B", 
       "abi": [
   {
     "inputs": [
@@ -198,6 +198,19 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "royaltyAddress",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

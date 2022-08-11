@@ -1,0 +1,188 @@
+{
+      "address": "0xACF9dFeB162f0bA1045dA295C98f15Edc641Ec6D", 
+      "abi": [
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_capsulesTypeface",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "capsulesTypeface",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes3",
+            "name": "color",
+            "type": "bytes3"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fontWeight",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes16[8]",
+            "name": "text",
+            "type": "bytes16[8]"
+          },
+          {
+            "internalType": "bool",
+            "name": "isPure",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLocked",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct Capsule",
+        "name": "capsule",
+        "type": "tuple"
+      },
+      {
+        "internalType": "bool",
+        "name": "square",
+        "type": "bool"
+      }
+    ],
+    "name": "svgOf",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "base64Svg",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "id",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes3",
+            "name": "color",
+            "type": "bytes3"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fontWeight",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes16[8]",
+            "name": "text",
+            "type": "bytes16[8]"
+          },
+          {
+            "internalType": "bool",
+            "name": "isPure",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLocked",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct Capsule",
+        "name": "capsule",
+        "type": "tuple"
+      }
+    ],
+    "name": "tokenUri",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]
+  }
