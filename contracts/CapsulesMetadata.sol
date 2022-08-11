@@ -46,6 +46,11 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         view
         returns (string memory)
     {
+        string memory isPureText = "no";
+        string memory isLockedText = "no";
+        if (capsule.isPure) isPureText = "yes";
+        if (capsule.isLocked) isLockedText = "yes";
+
         return
             string(
                 abi.encodePacked(
@@ -55,13 +60,13 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                             '{"name": "Capsule ',
                             Strings.toString(capsule.id),
                             '", "description": "7,957 tokens with unique colors and editable text rendered on-chain. 7 pure colors are reserved for wallets that pay gas to store one of the 7 Capsules font weights in the CapsulesTypeface contract.", "image": "',
-                            _svgFor(capsule, true),
+                            svgOf(capsule, true),
                             '", "attributes": [{"trait_type": "Color", "value": "#',
                             _bytes3ToHexChars(capsule.color),
                             '"}, {"pure": "',
-                            capsule.isPure,
+                            isPureText,
                             '}, {"locked": "',
-                            capsule.isLocked,
+                            isLockedText,
                             '"}]}'
                         )
                     )
@@ -69,26 +74,17 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             );
     }
 
-    /// @notice Return base64 encoded SVG for Capsule
-    /// @param capsule Capsule to return SVG for
-    /// @return image Image for Capsule
-    function imageOf(Capsule memory capsule)
-        external
-        view
-        returns (string memory)
-    {
-        return _svgFor(capsule, false);
-    }
-
     /// @notice Return Base64-encoded SVG for Capsule
     /// @param capsule Capsule to return image for
     /// @param square Fit image to square with content centered
     /// @return base64Svg Base64-encoded SVG for Capsule
-    function _svgFor(Capsule memory capsule, bool square)
-        internal
+    function svgOf(Capsule memory capsule, bool square)
+        public
         view
         returns (string memory base64Svg)
     {
+        uint256 dotSize = 4;
+
         // If text is not set, use default text
         if (_isEmptyText(capsule.text)) {
             capsule = Capsule({
@@ -116,7 +112,7 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 rowDots = abi.encodePacked(
                     rowDots,
                     '<circle cx="',
-                    Strings.toString(4 * i + 2),
+                    Strings.toString(dotSize * i + 2),
                     '" cy="2" r="1.5"></circle>'
                 );
             }
@@ -129,7 +125,7 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 textRowDots = abi.encodePacked(
                     textRowDots,
                     '<use href="#dots1x12" transform="translate(',
-                    Strings.toString(4 * i),
+                    Strings.toString(dotSize * i),
                     ')"></use>'
                 );
             }
@@ -143,7 +139,9 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             style = abi.encodePacked(
                 "<style>.capsules-",
                 Strings.toString(capsule.fontWeight),
-                '{ font-size: 40px; white-space: pre; } @font-face { font-family: "Capsules-',
+                "{ font-size: 40px; white-space: pre; font-family: Capsules-",
+                Strings.toString(capsule.fontWeight),
+                ' } @font-face { font-family: "Capsules-',
                 Strings.toString(capsule.fontWeight),
                 '"; src: url(data:font/truetype;charset=utf-8;base64,',
                 ITypeface(capsulesTypeface).fontSrc(
@@ -153,47 +151,49 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             );
         }
 
-        bytes memory dots;
+        bytes memory dotArea;
         {
             // Create background of dots as <g> group using <use> elements
-            dots = abi.encodePacked(
-                '<g fill="#',
-                props.hexColor,
-                '" opacity="0.3"'
-            );
+            dotArea = abi.encodePacked('<g fill="#', props.hexColor, '"');
             // If square image, translate dots to center of square
             if (square) {
-                dots = abi.encodePacked(
-                    dots,
-                    'transform="translate(',
-                    (props.squareSizeDots - props.textAreaWidthDots) / 2,
+                dotArea = abi.encodePacked(
+                    dotArea,
+                    ' transform="translate(',
+                    Strings.toString(
+                        ((props.squareSizeDots - props.textAreaWidthDots) / 2) *
+                            dotSize
+                    ),
                     " ",
-                    (props.squareSizeDots - props.textAreaHeightDots) / 2,
-                    '")'
+                    Strings.toString(
+                        ((props.squareSizeDots - props.textAreaHeightDots) /
+                            2) * dotSize
+                    ),
+                    ')"'
                 );
             }
-            dots = abi.encodePacked(
-                dots,
-                '><use href="#',
+            dotArea = abi.encodePacked(
+                dotArea,
+                '><g opacity="0.3"><use href="#',
                 props.rowId,
                 '"></use>'
             );
             for (uint256 i; i < props.linesCount; i++) {
-                dots = abi.encodePacked(
-                    dots,
+                dotArea = abi.encodePacked(
+                    dotArea,
                     '<use href="#',
                     props.textRowId,
                     '" transform="translate(0 ',
-                    Strings.toString(48 * i + 4),
+                    Strings.toString(48 * i + dotSize),
                     ')"></use>'
                 );
             }
-            dots = abi.encodePacked(
-                dots,
+            dotArea = abi.encodePacked(
+                dotArea,
                 '<use href="#',
                 props.rowId,
                 '" transform="translate(0 ',
-                Strings.toString((props.textAreaHeightDots - 1) * 4),
+                Strings.toString((props.textAreaHeightDots - 1) * dotSize),
                 ')"></use></g>'
             );
         }
@@ -202,33 +202,16 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         bytes memory texts;
         {
             bytes[8] memory safeText = _htmlSafeText(capsule.text);
-            string memory x;
-            string memory y;
-            if (square) {
-                // If square image, translate text group to center of square
-                x = Strings.toString(props.squareSizeDots * 4 + 10);
-                y = Strings.toString(props.squareSizeDots * 4 + 44);
-            } else {
-                // Else translate to center of text area
-                x = Strings.toString(10);
-                y = Strings.toString(44);
-            }
             texts = abi.encodePacked(
-                '<g fill="#',
-                props.hexColor,
-                '" transform="translate(',
-                x,
-                " ",
-                y,
-                ")>"
+                '<g transform="translate(10 44)" class="capsules-',
+                Strings.toString(capsule.fontWeight),
+                '">'
             );
             for (uint256 i = 0; i < props.linesCount; i++) {
                 texts = abi.encodePacked(
                     texts,
                     '<text y="',
                     Strings.toString(48 * i),
-                    '" font-family="Capsules-',
-                    Strings.toString(capsule.fontWeight),
                     '">',
                     safeText[i],
                     "</text>"
@@ -237,17 +220,19 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             texts = abi.encodePacked(texts, "</g>");
         }
 
+        dotArea = abi.encodePacked(dotArea, texts, "</g>");
+
         {
             string memory x;
             string memory y;
             if (square) {
                 // If square image, use square viewbox
-                x = Strings.toString(props.squareSizeDots * 4);
-                y = Strings.toString(props.squareSizeDots * 4);
+                x = Strings.toString(props.squareSizeDots * dotSize);
+                y = Strings.toString(props.squareSizeDots * dotSize);
             } else {
                 // Else fit to text area
-                x = Strings.toString(props.textAreaWidthDots * 4);
-                y = Strings.toString(props.textAreaHeightDots * 4);
+                x = Strings.toString(props.textAreaWidthDots * dotSize);
+                y = Strings.toString(props.textAreaHeightDots * dotSize);
             }
             bytes memory svg = abi.encodePacked(
                 '<svg viewBox="0 0 ',
@@ -259,8 +244,7 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 "</defs>",
                 style,
                 '<rect x="0" y="0" width="100%" height="100%" fill="#000"></rect>',
-                dots,
-                texts,
+                dotArea,
                 "</svg>"
             );
             base64Svg = string(
@@ -328,7 +312,7 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         uint256 textAreaHeightDots = linesCount * 12 + 2;
         // Square size of the entire svg in dots
         uint256 squareSizeDots;
-        if (textAreaHeightDots > textAreaWidthDots) {
+        if (textAreaHeightDots >= textAreaWidthDots) {
             squareSizeDots = textAreaHeightDots + 2;
         } else {
             squareSizeDots = textAreaWidthDots + 2;

@@ -12,7 +12,7 @@ interface ICapsulesMetadata {
         view
         returns (string memory);
 
-    function imageOf(Capsule memory capsule)
+    function svgOf(Capsule memory capsule, bool square)
         external
         view
         returns (string memory);

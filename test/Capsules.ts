@@ -32,26 +32,20 @@ describe("Capsules", async () => {
     let nonce = await deployer.getTransactionCount();
     const expectedCapsulesTokenAddress = utils.getContractAddress({
       from: deployer.address,
-      nonce: nonce + 1,
+      nonce: nonce + 2,
     });
 
     capsulesTypeface = await deployCapsulesTypeface(
       expectedCapsulesTokenAddress
     );
 
-    nonce = await deployer.getTransactionCount();
-    const expectedCapsulesMetadataAddress = utils.getContractAddress({
-      from: deployer.address,
-      nonce: nonce + 1,
-    });
+    capsulesMetadata = await deployCapsulesMetadata(
+      capsulesTypeface.address
+    );
 
     capsulesToken = await deployCapsulesToken(
       capsulesTypeface.address,
-      expectedCapsulesMetadataAddress
-    );
-
-    capsulesMetadata = await deployCapsulesMetadata(
-      capsulesTypeface.address
+      capsulesMetadata.address
     );
   });
 
@@ -74,6 +68,8 @@ describe("Capsules", async () => {
       expect(await capsulesMetadata.capsulesTypeface()).to.equal(
         capsulesTypeface.address
       );
+
+      expect(await capsules.capsulesMetadata()).to.equal(capsulesMetadata.address)
     });
   });
 
@@ -125,7 +121,7 @@ describe("Capsules", async () => {
         );
 
         console.log(
-          "Gas for ",
+          "Gas for",
           weight,
           "=> " +
             (gas.toNumber() * gasPrice).toString().substring(0, 6) +
@@ -288,8 +284,9 @@ describe("Capsules", async () => {
       //   await minter1Capsules.textOf(1, 0),
       //   await minter1Capsules.textOf(1, 7)
       // );
-      // console.log(await minter1Capsules.colorOf(1));
-      // console.log(await minter1Capsules.tokenURI(1));
+      // console.log('capsuleFor',await minter1Capsules.capsuleFor(1));
+      console.log('svgOf square',await minter1Capsules.svgOf(1, true));
+      console.log('svgOf notsquare',await minter1Capsules.svgOf(1, false));
     });
 
     it("Mint already minted color should revert", async () => {

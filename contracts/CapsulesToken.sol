@@ -193,9 +193,16 @@ contract CapsulesToken is
     /// @notice Return image of Capsule
     /// @param capsuleId ID of Capsule token
     /// @return image Image of Capsule
-    function imageOf(uint256 capsuleId) public view returns (string memory) {
+    function svgOf(uint256 capsuleId, bool square)
+        public
+        view
+        returns (string memory)
+    {
         return
-            ICapsulesMetadata(capsulesMetadata).imageOf(capsuleFor(capsuleId));
+            ICapsulesMetadata(capsulesMetadata).svgOf(
+                capsuleFor(capsuleId),
+                square
+            );
     }
 
     /// @notice Returns all Capsule data for capsuleId

@@ -146,14 +146,13 @@ export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
     capsulesTokenAddress
   )) as CapsulesTypeface;
 
-  const x = await capsulesTypeface.deployTransaction.wait();
+  const tx = await capsulesTypeface.deployTransaction.wait();
   const price = 50 * 0.000000001;
-  console.log("deploy", x.gasUsed.toNumber() * price);
 
   console.log(
     indent +
       "Deployed CapsulesTypeface " +
-      chalk.magenta(capsulesTypeface.address)
+      chalk.magenta(capsulesTypeface.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
   );
 
   return capsulesTypeface;
@@ -178,8 +177,11 @@ export async function deployCapsulesToken(
 
   await capsules.transferOwnership(owner.address);
 
+  const tx = await capsules.deployTransaction.wait();
+  const price = 50 * 0.000000001;
+
   console.log(
-    indent + "Deployed CapsulesToken " + chalk.magenta(capsules.address)
+    indent + "Deployed CapsulesToken " + chalk.magenta(capsules.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
   );
 
   return capsules;
@@ -194,10 +196,13 @@ export async function deployCapsulesMetadata(
     capsulesTypefaceAddress
   )) as CapsulesMetadata;
 
+  const tx = await capsulesMetadata.deployTransaction.wait();
+  const price = 50 * 0.000000001;
+
   console.log(
     indent +
       "Deployed CapsulesMetadata " +
-      chalk.magenta(capsulesMetadata.address)
+      chalk.magenta(capsulesMetadata.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
   );
 
   return capsulesMetadata;

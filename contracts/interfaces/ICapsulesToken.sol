@@ -50,7 +50,10 @@ interface ICapsulesToken {
 
     function isLocked(uint256 capsuleId) external view returns (bool);
 
-    function imageOf(uint256 capsuleId) external view returns (string memory);
+    function svgOf(uint256 capsuleId, bool square)
+        external
+        view
+        returns (string memory);
 
     function mint(
         bytes3 color,
