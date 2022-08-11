@@ -24,16 +24,8 @@ interface ICapsulesToken {
         bytes16[8] text,
         uint256 fontWeight
     );
-    event ClaimCapsule(
-        uint256 indexed id,
-        address indexed to,
-        bytes3 indexed color,
-        bytes16[8] text,
-        uint256 fontWeight
-    );
     event SetCapsulesMetadata(address _capsulesMetadata);
     event SetCreatorFeeReceiver(address _address);
-    event SetClaimCount(address indexed _address, uint256 number);
     event SetPureColors(bytes3[] colors);
     event SetRoyalty(uint256 royalty);
     event LockMetadata();
@@ -68,13 +60,6 @@ interface ICapsulesToken {
         bytes16[8] calldata text
     ) external returns (uint256 capsuleId);
 
-    function claim(
-        bytes3 color,
-        bytes16[8] calldata text,
-        uint256 fontWeight,
-        bool lock
-    ) external returns (uint256 capsuleId);
-
     function lockCapsule(uint256 capsuleId) external;
 
     function withdraw() external;
@@ -91,9 +76,6 @@ interface ICapsulesToken {
     function setCapsulesMetadata(address _capsulesMetadata) external;
 
     function setCreatorFeeReceiver(address _creatorFeeReceiver) external;
-
-    function setClaimable(address[] calldata receivers, uint256 number)
-        external;
 
     function setRoyalty(uint256 _royalty) external;
 

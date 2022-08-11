@@ -22,7 +22,6 @@ error InvalidFontWeight();
 error InvalidColor();
 error PureColorNotAllowed();
 error NotCapsulesTypeface();
-error NoClaimableTokens();
 error ColorAlreadyMinted(uint256 capsuleId);
 error NotCapsuleOwner(address owner);
 error CapsuleLocked();
@@ -81,12 +80,6 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the color is valid
-    modifier onlyClaimable() {
-        if (claimCount[msg.sender] < 1) revert NoClaimableTokens();
-        _;
-    }
-
     /// @notice Require that the capsule is unlocked
     modifier onlyUnlockedCapsule(uint256 capsuleId) {
         if (isLocked(capsuleId)) revert CapsuleLocked();
@@ -140,9 +133,6 @@ contract CapsulesToken is
 
     /// Price to mint a Capsule
     uint256 public constant MINT_PRICE = 2e16; // 0.02 ETH
-
-    /// Mapping of addresses to number of tokens that can be claimed
-    mapping(address => uint256) public claimCount;
 
     /// Capsules typeface address
     address public immutable capsulesTypeface;
@@ -282,33 +272,6 @@ contract CapsulesToken is
             fontWeight,
             false
         );
-    }
-
-    /// @notice Allows address on claim list to mint Capsule
-    /// @dev Requires active sale and for msg.sender to be on friends list.
-    /// @param color Color of Capsule
-    /// @param text Text of Capsule
-    /// @param fontWeight FontWeight of Capsule
-    /// @param lock Lock Capsule (irreversible)
-    /// @return capsuleId ID of minted Capsule
-    function claim(
-        bytes3 color,
-        bytes16[8] calldata text,
-        uint256 fontWeight,
-        bool lock
-    )
-        external
-        onlyImpureColor(color)
-        onlyClaimable
-        whenNotPaused
-        nonReentrant
-        returns (uint256 capsuleId)
-    {
-        claimCount[msg.sender]--;
-
-        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight, lock);
-
-        emit ClaimCapsule(capsuleId, msg.sender, color, text, fontWeight);
     }
 
     /// @notice Allows Capsule owner to permanently lock the Capsule, preventing it from being edited
@@ -453,19 +416,6 @@ contract CapsulesToken is
         creatorFeeReceiver = _creatorFeeReceiver;
 
         emit SetCreatorFeeReceiver(_creatorFeeReceiver);
-    }
-
-    /// @notice Allows the owner to update friendsList
-    /// @param recievers list of addresses that can claim
-    /// @param number number of mints allowed for each receiver address
-    function setClaimable(address[] calldata recievers, uint256 number)
-        external
-        onlyOwner
-    {
-        for (uint256 i; i < recievers.length; i++) {
-            claimCount[recievers[i]] = number;
-            emit SetClaimCount(recievers[i], number);
-        }
     }
 
     /// @notice Allows the owner to update royalty amount

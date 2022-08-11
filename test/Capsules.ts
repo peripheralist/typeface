@@ -184,38 +184,6 @@ describe("Capsules", async () => {
     });
   });
 
-  describe("Claiming", async () => {
-    it("Should set claim list", async () => {
-      const { owner, friend1 } = await wallets();
-
-      await capsulesContract(owner).setClaimable([friend1.address], [1]);
-
-      expect(await capsulesContract().claimCount(friend1.address)).to.equal(1);
-    });
-
-    it("Claim should fail for non-friend", async () => {
-      const { minter1 } = await wallets();
-
-      await expect(
-        capsulesContract(minter1).claim("0xff0005", emptyNote, 400, false)
-      ).to.be.revertedWith("NoClaimableTokens()");
-    });
-
-    it("Claim should succeed for non-friend", async () => {
-      const { friend1 } = await wallets();
-
-      await capsulesContract(friend1).claim("0xff0005", emptyNote, 400, false);
-    });
-
-    it("Claim should fail if friend already claimed all claimable tokens", async () => {
-      const { friend1 } = await wallets();
-
-      await expect(
-        capsulesContract(friend1).claim("0xff00a0", emptyNote, 400, false)
-      ).to.be.revertedWith("NoClaimableTokens()");
-    });
-  });
-
   describe("Minting", async () => {
     it("Mint with unset font weight should revert", async () => {
       const { minter1 } = await wallets();

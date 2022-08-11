@@ -122,10 +122,10 @@ export async function mintValidUnlockedCapsules(signer: Signer, count?: number) 
 }
 
 export async function wallets() {
-  const [deployer, owner, feeReceiver, minter1, minter2, friend1] =
+  const [deployer, owner, feeReceiver, minter1, minter2] =
     await ethers.getSigners();
 
-  return { deployer, owner, feeReceiver, minter1, minter2, friend1 };
+  return { deployer, owner, feeReceiver, minter1, minter2 };
 }
 
 export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
