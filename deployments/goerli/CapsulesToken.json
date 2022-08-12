@@ -1,5 +1,5 @@
 {
-      "address": "0x8cF03af991dF828f025e635D5FbC6500234d1603", 
+      "address": "0xb817a0d6Af15Ac1007a5f23E39eEB035428271BD", 
       "abi": [
   {
     "inputs": [
@@ -104,11 +104,6 @@
     "type": "error"
   },
   {
-    "inputs": [],
-    "name": "NoClaimableTokens",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "address",
@@ -207,43 +202,6 @@
       }
     ],
     "name": "ApprovalForAll",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "to",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes3",
-        "name": "color",
-        "type": "bytes3"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "fontWeight",
-        "type": "uint256"
-      }
-    ],
-    "name": "ClaimCapsule",
     "type": "event"
   },
   {
@@ -370,25 +328,6 @@
       }
     ],
     "name": "SetCapsulesMetadata",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "_address",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "number",
-        "type": "uint256"
-      }
-    ],
-    "name": "SetClaimCount",
     "type": "event"
   },
   {
@@ -641,59 +580,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes3",
-        "name": "color",
-        "type": "bytes3"
-      },
-      {
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "fontWeight",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "lock",
-        "type": "bool"
-      }
-    ],
-    "name": "claim",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "capsuleId",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "name": "claimCount",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1128,24 +1014,6 @@
       }
     ],
     "name": "setCapsulesMetadata",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address[]",
-        "name": "recievers",
-        "type": "address[]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "number",
-        "type": "uint256"
-      }
-    ],
-    "name": "setClaimable",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -25,6 +25,9 @@ export let capsulesTypeface: CapsulesTypeface;
 export let capsulesToken: CapsulesToken;
 export let capsulesMetadata: CapsulesMetadata;
 
+const gasGwei = 15;
+const gasPrice = gasGwei * 0.000000001;
+
 describe("Capsules", async () => {
   before(async () => {
     const { deployer } = await wallets();
@@ -109,8 +112,6 @@ describe("Capsules", async () => {
         style: "normal",
       }));
 
-      const gasPrice = 50 * 0.000000001;
-
       // Estimate gas to store all fonts
       for (let i = 0; i < _fonts.length; i++) {
         const weight = _fonts[i].weight;
@@ -163,7 +164,7 @@ describe("Capsules", async () => {
         .and.to.emit(capsulesTypeface, "SetFontSrc");
 
       // Owner should receive Capsule NFT
-      await expect(await capsulesToken.balanceOf(owner.address)).to.equal(1);
+      expect(await capsulesToken.balanceOf(owner.address)).to.equal(1);
     });
 
     it("setFontSrc should revert if already set", async () => {
@@ -215,7 +216,7 @@ describe("Capsules", async () => {
       ).to.be.revertedWith("ValueBelowMintPrice()");
     });
 
-    it("Mint reserved color should revert", async () => {
+    it("Mint pure color should revert", async () => {
       const { minter1 } = await wallets();
 
       await expect(
@@ -253,8 +254,8 @@ describe("Capsules", async () => {
       //   await minter1Capsules.textOf(1, 7)
       // );
       // console.log('capsuleFor',await minter1Capsules.capsuleFor(1));
-      console.log('svgOf square',await minter1Capsules.svgOf(1, true));
-      console.log('svgOf notsquare',await minter1Capsules.svgOf(1, false));
+      // console.log('svgOf square',await minter1Capsules.svgOf(1, true));
+      // console.log('svgOf notsquare',await minter1Capsules.svgOf(1, false));
     });
 
     it("Mint already minted color should revert", async () => {
@@ -276,7 +277,7 @@ describe("Capsules", async () => {
     it("Edit non-owned capsule should revert", async () => {
       const { minter2 } = await wallets();
 
-      const id = 3;
+      const id = 2;
 
       expect(await capsulesToken.ownerOf(id)).to.not.equal(minter2.address);
 
@@ -290,7 +291,7 @@ describe("Capsules", async () => {
     it("Edit owned capsule should succeed", async () => {
       const { minter1 } = await wallets();
 
-      const id = 3;
+      const id = 2;
 
       expect(await capsulesToken.ownerOf(id)).to.equal(minter1.address);
 
@@ -300,7 +301,7 @@ describe("Capsules", async () => {
     it("Set invalid font weight should revert", async () => {
       const { minter1 } = await wallets();
 
-      const id = 3;
+      const id = 2;
 
       await expect(
         capsulesContract(minter1).editCapsule(id, emptyNote, 69, false)
@@ -310,7 +311,7 @@ describe("Capsules", async () => {
     it("Set invalid text should revert", async () => {
       const { minter1 } = await wallets();
 
-      const id = 3;
+      const id = 2;
 
       await expect(
         capsulesContract(minter1).editCapsule(
@@ -348,7 +349,7 @@ describe("Capsules", async () => {
         capsulesToken.address
       );
 
-      console.log({ initialFeeReceiverBalance, capsulesBalance1 });
+      // console.log({ initialFeeReceiverBalance, capsulesBalance1 });
 
       await expect(minter1Capsules.withdraw())
         .to.emit(minter1Capsules, "Withdraw")

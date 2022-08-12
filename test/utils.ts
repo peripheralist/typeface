@@ -10,7 +10,7 @@ import { CapsulesMetadata, CapsulesToken } from "../typechain-types";
 import { CapsulesTypeface } from "../typechain-types/CapsulesTypeface";
 import { capsulesToken, capsulesTypeface } from "./Capsules";
 
-export const mintPrice = ethers.utils.parseEther("0.02");
+export const mintPrice = ethers.utils.parseEther("0.01");
 
 export const maxSupply = 7957;
 

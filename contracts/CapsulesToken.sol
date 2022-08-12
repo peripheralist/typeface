@@ -132,7 +132,7 @@ contract CapsulesToken is
     /* -------------------------------------------------------------------------- */
 
     /// Price to mint a Capsule
-    uint256 public constant MINT_PRICE = 2e16; // 0.02 ETH
+    uint256 public constant MINT_PRICE = 1e16; // 0.01 ETH
 
     /// Capsules typeface address
     address public immutable capsulesTypeface;
