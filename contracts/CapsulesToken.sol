@@ -158,8 +158,17 @@ contract CapsulesToken is
     /// CapsulesMetadata contract address cannot be updated if locked
     bool public metadataLocked;
 
-    /// Mapping of Capsule ID to Capsule data
-    mapping(uint256 => Capsule) internal _capsuleOf;
+    // /// Mapping of Capsule ID to Capsule data
+    // mapping(uint256 => Capsule) internal _capsuleOf;
+
+    /// Mapping of Capsule ID to text
+    mapping(uint256 => bytes4[16][8]) internal _textOf;
+
+    /// Mapping of Capsule ID to color
+    mapping(uint256 => bytes3) internal _colorOf;
+
+    /// Mapping of Capsule ID to font weight
+    mapping(uint256 => uint256) internal _fontWeightOf;
 
     /// Mapping of Capsule ID to locked state
     mapping(uint256 => bool) internal _locked;
@@ -207,7 +216,16 @@ contract CapsulesToken is
         view
         returns (Capsule memory capsule)
     {
-        capsule = _capsuleOf[capsuleId];
+        bytes3 color = _colorOf[capsuleId];
+
+        capsule = Capsule({
+            id: capsuleId,
+            fontWeight: _fontWeightOf[capsuleId],
+            text: _textOf[capsuleId],
+            color: color,
+            isPure: isPureColor(color),
+            isLocked: _locked[capsuleId]
+        });
     }
 
     /// @notice Check if color is valid for minting.
@@ -361,16 +379,8 @@ contract CapsulesToken is
         onlyValidFontWeight(fontWeight)
         nonReentrant
     {
-        Capsule memory capsule = _capsuleOf[capsuleId];
-
-        _capsuleOf[capsuleId] = Capsule({
-            id: capsuleId,
-            color: capsule.color,
-            text: text,
-            fontWeight: fontWeight,
-            isPure: isPureColor(capsule.color),
-            isLocked: lock
-        });
+        _textOf[capsuleId] = text;
+        _fontWeightOf[capsuleId] = fontWeight;
 
         emit EditCapsule(capsuleId, text, fontWeight);
 
@@ -478,15 +488,9 @@ contract CapsulesToken is
         capsuleId = _currentIndex - 1;
 
         tokenIdOfColor[color] = capsuleId;
-
-        _capsuleOf[capsuleId] = Capsule({
-            id: capsuleId,
-            color: color,
-            text: text,
-            fontWeight: fontWeight,
-            isPure: isPureColor(color),
-            isLocked: lock
-        });
+        _colorOf[capsuleId] = color;
+        _textOf[capsuleId] = text;
+        _fontWeightOf[capsuleId] = fontWeight;
 
         emit MintCapsule(capsuleId, to, color, text, fontWeight);
 

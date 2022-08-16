@@ -248,6 +248,15 @@ describe("Capsules", async () => {
 
       const text = textToBytes4Lines([""]);
 
+      const gas = await minter1Capsules.estimateGas.mint(color, text, fontWeight, false, {
+        value: mintPrice,
+      });
+
+      console.log(
+        "Gas to mint capsule",
+        "=> " + (gas.toNumber() * gasPrice).toString().substring(0, 6) + " ETH"
+      );
+
       await expect(
         minter1Capsules.mint(color, text, fontWeight, false, {
           value: mintPrice,
