@@ -11,7 +11,7 @@ struct Capsule {
     uint256 id;
     bytes3 color;
     uint256 fontWeight;
-    bytes16[8] text;
+    bytes4[16][8] text;
     bool isPure;
     bool isLocked;
 }
@@ -21,7 +21,7 @@ interface ICapsulesToken {
         uint256 indexed id,
         address indexed to,
         bytes3 indexed color,
-        bytes16[8] text,
+        bytes4[16][8] text,
         uint256 fontWeight
     );
     event SetCapsulesMetadata(address _capsulesMetadata);
@@ -30,10 +30,14 @@ interface ICapsulesToken {
     event SetRoyalty(uint256 royalty);
     event LockMetadata();
     event LockCapsule(uint256 capsuleId);
-    event EditCapsule(uint256 indexed id, bytes16[8] text, uint256 fontWeight);
+    event EditCapsule(
+        uint256 indexed id,
+        bytes4[16][8] text,
+        uint256 fontWeight
+    );
     event Withdraw(address to, uint256 amount);
 
-    function capsuleFor(uint256 capsuleId)
+    function capsuleOf(uint256 capsuleId)
         external
         view
         returns (Capsule memory capsule);
@@ -49,7 +53,7 @@ interface ICapsulesToken {
 
     function mint(
         bytes3 color,
-        bytes16[8] calldata text,
+        bytes4[16][8] calldata text,
         uint256 fontWeight,
         bool lock
     ) external payable returns (uint256);
@@ -57,7 +61,7 @@ interface ICapsulesToken {
     function mintPureColorForFontWeight(
         address to,
         uint256 fontWeight,
-        bytes16[8] calldata text
+        bytes4[16][8] calldata text
     ) external returns (uint256 capsuleId);
 
     function lockCapsule(uint256 capsuleId) external;
@@ -66,7 +70,7 @@ interface ICapsulesToken {
 
     function editCapsule(
         uint256 capsuleId,
-        bytes16[8] calldata text,
+        bytes4[16][8] calldata text,
         uint256 fontWeight,
         bool lock
     ) external;

@@ -8,7 +8,7 @@ import { fonts } from "../fonts";
 import { reservedColors } from "../reservedColors";
 import { CapsulesMetadata, CapsulesToken } from "../typechain-types";
 import { CapsulesTypeface } from "../typechain-types/CapsulesTypeface";
-import { capsulesToken, capsulesTypeface } from "./Capsules";
+import { capsulesMetadata, capsulesToken, capsulesTypeface } from "./Capsules";
 
 export const mintPrice = ethers.utils.parseEther("0.01");
 
@@ -18,61 +18,35 @@ export const totalSupply = async () => await capsulesContract().totalSupply();
 
 export const indent = "      " + chalk.bold("- ");
 
-export const formatBytes16 = (str: string) => {
-  let bytes = strToUtf8Bytes(str)
-    .map((char) => ethers.utils.hexValue(char).split("0x")[1])
-    .join("");
-  bytes = bytes.toString().padEnd(32, "00");
-  return "0x" + bytes;
+export const textToBytes4Lines = (text: string[]) => {
+  const emptyText = ["", "", "", "", "", "", "", ""];
+  return [...emptyText, ...text]
+    .filter((_, i) => i < 8)
+    .map(stringToBytes4Line);
 };
 
-export const emptyNote = [
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-  ethers.utils.hexZeroPad("0x0", 16),
-];
-
-function strToUtf8Bytes(str: string) {
-  const utf8 = [];
-  for (let ii = 0; ii < str.length; ii++) {
-    let charCode = str.charCodeAt(ii);
-    if (charCode < 0x80) utf8.push(charCode);
-    else if (charCode < 0x800) {
-      utf8.push(0xc0 | (charCode >> 6), 0x80 | (charCode & 0x3f));
-    } else if (charCode < 0xd800 || charCode >= 0xe000) {
-      utf8.push(
-        0xe0 | (charCode >> 12),
-        0x80 | ((charCode >> 6) & 0x3f),
-        0x80 | (charCode & 0x3f)
-      );
-    } else {
-      ii++;
-      // Surrogate pair:
-      // UTF-16 encodes 0x10000-0x10FFFF by subtracting 0x10000 and
-      // splitting the 20 bits of 0x0-0xFFFFF into two halves
-      charCode =
-        0x10000 + (((charCode & 0x3ff) << 10) | (str.charCodeAt(ii) & 0x3ff));
-      utf8.push(
-        0xf0 | (charCode >> 18),
-        0x80 | ((charCode >> 12) & 0x3f),
-        0x80 | ((charCode >> 6) & 0x3f),
-        0x80 | (charCode & 0x3f)
-      );
+export const stringToBytes4Line = (str?: string) => {
+  const arr: string[] = [];
+  for (let i = 0; i < 16; i++) {
+    let byte = "00000000";
+    if (str?.length) {
+      byte = Buffer.from(str[i], "utf8").toString("hex").padStart(8, "0");
     }
+    arr.push("0x" + byte);
   }
-  return utf8;
-}
+  return arr;
+};
+
+export const emptyNote = textToBytes4Lines([]);
 
 export async function skipToBlockNumber(seconds: number) {
   await ethers.provider.send("evm_mine", [seconds]);
 }
 
-export async function mintValidUnlockedCapsules(signer: Signer, count?: number) {
+export async function mintValidUnlockedCapsules(
+  signer: Signer,
+  count?: number
+) {
   let hexes: string[] = [];
 
   const capsules = capsulesContract(signer);
@@ -152,7 +126,9 @@ export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
   console.log(
     indent +
       "Deployed CapsulesTypeface " +
-      chalk.magenta(capsulesTypeface.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
+      chalk.magenta(capsulesTypeface.address) +
+      " Gas: " +
+      tx.gasUsed.toNumber() * price
   );
 
   return capsulesTypeface;
@@ -181,15 +157,17 @@ export async function deployCapsulesToken(
   const price = 50 * 0.000000001;
 
   console.log(
-    indent + "Deployed CapsulesToken " + chalk.magenta(capsules.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
+    indent +
+      "Deployed CapsulesToken " +
+      chalk.magenta(capsules.address) +
+      " Gas: " +
+      tx.gasUsed.toNumber() * price
   );
 
   return capsules;
 }
 
-export async function deployCapsulesMetadata(
-  capsulesTypefaceAddress: string
-) {
+export async function deployCapsulesMetadata(capsulesTypefaceAddress: string) {
   const CapsulesMetadata = await ethers.getContractFactory("CapsulesMetadata");
 
   const capsulesMetadata = (await CapsulesMetadata.deploy(
@@ -202,7 +180,9 @@ export async function deployCapsulesMetadata(
   console.log(
     indent +
       "Deployed CapsulesMetadata " +
-      chalk.magenta(capsulesMetadata.address) + ' Gas: ' + tx.gasUsed.toNumber() * price
+      chalk.magenta(capsulesMetadata.address) +
+      " Gas: " +
+      tx.gasUsed.toNumber() * price
   );
 
   return capsulesMetadata;
@@ -220,6 +200,19 @@ export const capsulesContract = (signer?: Signer) =>
     ).abi,
     signer ?? ethers.provider
   ) as CapsulesToken;
+
+export const capsulesMetadataContract = (signer?: Signer) =>
+  new Contract(
+    capsulesMetadata.address,
+    JSON.parse(
+      fs
+        .readFileSync(
+          "./artifacts/contracts/CapsulesMetadata.sol/CapsulesMetadata.json"
+        )
+        .toString()
+    ).abi,
+    signer ?? ethers.provider
+  ) as CapsulesMetadata;
 
 export const capsulesTypefaceContract = (signer?: Signer) =>
   new Contract(

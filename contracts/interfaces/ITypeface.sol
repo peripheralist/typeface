@@ -7,9 +7,9 @@ struct Font {
 }
 
 interface ITypeface {
-    event SetFontSrc(Font font, bytes src);
+    event SetSource(Font font, bytes source);
 
-    event SetFontSrcHash(Font font, bytes32 _hash);
+    event SetSourceHash(Font font, bytes32 sourceHash);
 
     /**
      * @notice Returns the typeface name.
@@ -17,22 +17,17 @@ interface ITypeface {
     function name() external view returns (string memory);
 
     /**
-     * @notice Return true if byte is supported by font.
+     * @notice Return true if char is supported by font.
      */
-    function isAllowedByte(bytes1 b) external view returns (bool);
+    function isAllowedChar(bytes4 char) external view returns (bool);
 
     /**
-     * @notice Return src bytes for Font.
+     * @notice Return source bytes for Font.
      */
-    function fontSrc(Font memory font) external view returns (bytes memory);
+    function sourceOf(Font memory font) external view returns (bytes memory);
 
     /**
-     * @notice Returns the address to receive any royalties.
-     */
-    function royaltyAddress() external view returns (address);
-
-    /**
-     * @notice Sets the src bytes for a font
+     * @notice Sets the source bytes for a font
      */
     function setFontSrc(Font memory font, bytes memory src) external;
 }

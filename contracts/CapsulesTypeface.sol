@@ -15,26 +15,27 @@ contract CapsulesTypeface is Typeface {
         Font[] memory fonts,
         bytes32[] memory hashes,
         address _capsulesToken
-    ) Typeface("Capsules", _capsulesToken) {
+    ) Typeface("Capsules") {
         setFontSrcHash(fonts, hashes);
 
         capsulesToken = ICapsulesToken(_capsulesToken);
     }
 
     /// @notice Returns true if byte is supported by this typeface
-    function isAllowedByte(bytes1 b) external pure returns (bool) {
+    function isAllowedChar(bytes4 b) external pure returns (bool) {
         // TODO
+        return true;
         // All basic Latin letters, digits, symbols, punctuation
-        return b >= 0x20 && b <= 0x7E;
+        // return b >= 0x00000020 && b <= 0x0000007E;
     }
 
     /// @notice Mint pure color Capsule token to caller when caller sets fontSrc
-    function afterSetFontSrc(Font memory font, bytes memory)
+    function afterSetSource(Font memory font, bytes memory)
         internal
         override(Typeface)
     {
         // Empty text
-        bytes16[8] memory text;
+        bytes4[16][8] memory text;
 
         capsulesToken.mintPureColorForFontWeight(msg.sender, font.weight, text);
     }

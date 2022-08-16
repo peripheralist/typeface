@@ -4,17 +4,14 @@ pragma solidity ^0.8.0;
 import "./interfaces/ITypeface.sol";
 
 abstract contract Typeface is ITypeface {
-    /// Mapping of weight => style => font src data as bytes
-    mapping(uint256 => mapping(string => bytes)) private _fontSrc;
+    /// Mapping of weight => style => font source data as bytes
+    mapping(uint256 => mapping(string => bytes)) private _source;
 
-    /// Mapping of weight => style => keccack256 hash of font src data as bytes
-    mapping(uint256 => mapping(string => bytes32)) private _fontSrcHash;
+    /// Mapping of weight => style => keccack256 hash of font source data as bytes
+    mapping(uint256 => mapping(string => bytes32)) private _sourceHash;
 
     /// Typeface name
     string private _name;
-
-    /// Address to receive royalties
-    address private _royaltyAddress;
 
     /// @notice Return typeface name.
     /// @return name of typeface
@@ -22,59 +19,53 @@ abstract contract Typeface is ITypeface {
         return _name;
     }
 
-    /// @notice Return royalty address.
-    /// @return address to receive royalties
-    function royaltyAddress() public view virtual override returns (address) {
-        return _royaltyAddress;
-    }
-
-    /// @notice Return src bytes for font.
-    /// @return src Font data as bytes
-    function fontSrc(Font memory font)
+    /// @notice Return source bytes for font.
+    /// @return source Font data as bytes
+    function sourceOf(Font memory font)
         public
         view
         virtual
-        returns (bytes memory src)
+        returns (bytes memory)
     {
-        src = _fontSrc[font.weight][font.style];
+        return _source[font.weight][font.style];
     }
 
-    /// @notice Return hash of src bytes for font.
-    /// @return _hash hash of src bytes for font
-    function fontSrcHash(Font memory font)
+    /// @notice Return hash of source bytes for font.
+    /// @return _hash hash of source bytes for font
+    function sourceHash(Font memory font)
         public
         view
         virtual
-        returns (bytes32 _hash)
+        returns (bytes32)
     {
-        _hash = _fontSrcHash[font.weight][font.style];
+        return _sourceHash[font.weight][font.style];
     }
 
-    /// @notice Sets src bytes for Font.
-    ///  @dev The keccack256 hash of the src must equal the fontSrcHash of the font.
-    ///  @param font Font to set src for
-    ///  @param src Font data as bytes
-    function setFontSrc(Font memory font, bytes memory src) public {
+    /// @notice Sets source bytes for Font.
+    ///  @dev The keccack256 hash of the source must equal the sourceHash of the font.
+    ///  @param font Font to set source for
+    ///  @param source Font data as bytes
+    function setFontSrc(Font memory font, bytes memory source) public {
         require(
-            _fontSrc[font.weight][font.style].length == 0,
-            "Typeface: font src already exists"
+            _source[font.weight][font.style].length == 0,
+            "Typeface: font source already exists"
         );
 
         require(
-            keccak256(src) == _fontSrcHash[font.weight][font.style],
+            keccak256(source) == _sourceHash[font.weight][font.style],
             "Typeface: Invalid font"
         );
 
-        beforeSetFontSrc(font, src);
+        beforeSetSource(font, source);
 
-        _fontSrc[font.weight][font.style] = src;
+        _source[font.weight][font.style] = source;
 
-        emit SetFontSrc(font, src);
+        emit SetSource(font, source);
 
-        afterSetFontSrc(font, src);
+        afterSetSource(font, source);
     }
 
-    /// @notice Sets hash of src data for each font in a list.
+    /// @notice Sets hash of source data for each font in a list.
     /// @dev Length of fonts and hashes arrays must be equal. Each hash from hashes array will be set for the font with matching index in the fonts array.
     /// @param fonts Array of fonts to set hashes for
     /// @param hashes Array of hashes to set for fonts
@@ -87,25 +78,24 @@ abstract contract Typeface is ITypeface {
         );
 
         for (uint256 i; i < fonts.length; i++) {
-            _fontSrcHash[fonts[i].weight][fonts[i].style] = hashes[i];
+            _sourceHash[fonts[i].weight][fonts[i].style] = hashes[i];
 
-            emit SetFontSrcHash(fonts[i], hashes[i]);
+            emit SetSourceHash(fonts[i], hashes[i]);
         }
     }
 
-    constructor(string memory name_, address __royaltyAddress) {
+    constructor(string memory name_) {
         _name = name_;
-        _royaltyAddress = __royaltyAddress;
     }
 
     /// @notice Function called before setFontSrc() is called.
-    function beforeSetFontSrc(Font memory font, bytes memory src)
+    function beforeSetSource(Font memory font, bytes memory src)
         internal
         virtual
     {}
 
     /// @notice Function called after setFontSrc() is called.
-    function afterSetFontSrc(Font memory font, bytes memory src)
+    function afterSetSource(Font memory font, bytes memory src)
         internal
         virtual
     {}

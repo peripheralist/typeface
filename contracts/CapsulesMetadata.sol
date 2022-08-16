@@ -14,23 +14,21 @@ import "./interfaces/ICapsulesToken.sol";
 import "./interfaces/ICapsulesMetadata.sol";
 import "./utils/Base64.sol";
 
-struct SvgProps {
+struct SvgSpecs {
     // Capsule color formatted as hex color code
     bytes hexColor;
-    // ID for row dots element
-    bytes rowId;
-    // ID for text-height row dots element
+    // ID for row elements used on top and bottom edges of svg.
+    bytes edgeRowId;
+    // ID for row elements placed behind text rows.
     bytes textRowId;
-    // Number of non-empty lines in Capsule text
+    // Number of non-empty lines in Capsule text. Only trailing empty lines are excluded.
     uint256 linesCount;
-    // Character length of the longest line of text
+    // Number of characters in the longest line of text.
     uint256 charWidth;
-    // Width of the text area in dots
+    // Width of the text area (in dots).
     uint256 textAreaWidthDots;
-    // Height of the text area in dots
+    // Height of the text area (in dots).
     uint256 textAreaHeightDots;
-    // Square size of the entire svg in dots
-    uint256 squareSizeDots;
 }
 
 contract CapsulesMetadata is Ownable, ICapsulesMetadata {
@@ -46,10 +44,10 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         view
         returns (string memory)
     {
-        string memory isPureText = "no";
-        string memory isLockedText = "no";
-        if (capsule.isPure) isPureText = "yes";
-        if (capsule.isLocked) isLockedText = "yes";
+        string memory pureText = "no";
+        string memory lockedText = "no";
+        if (capsule.isPure) pureText = "yes";
+        if (capsule.isLocked) lockedText = "yes";
 
         return
             string(
@@ -64,9 +62,9 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                             '", "attributes": [{"trait_type": "Color", "value": "#',
                             _bytes3ToHexChars(capsule.color),
                             '"}, {"pure": "',
-                            isPureText,
+                            pureText,
                             '}, {"locked": "',
-                            isLockedText,
+                            lockedText,
                             '"}]}'
                         )
                     )
@@ -97,31 +95,31 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             });
         }
 
-        SvgProps memory props = _svgPropsOf(capsule);
+        SvgSpecs memory specs = _svgSpecsOf(capsule);
 
+        // Define reusable <g> elements to minimize overall SVG size
         bytes memory defs;
         {
-            // Define reusable <g> elements to minimize overall SVG size
             bytes
                 memory dots1x12 = '<g id="dots1x12"><circle cx="2" cy="2" r="1.5"></circle><circle cx="2" cy="6" r="1.5"></circle><circle cx="2" cy="10" r="1.5"></circle><circle cx="2" cy="14" r="1.5"></circle><circle cx="2" cy="18" r="1.5"></circle><circle cx="2" cy="22" r="1.5"></circle><circle cx="2" cy="26" r="1.5"></circle><circle cx="2" cy="30" r="1.5"></circle><circle cx="2" cy="34" r="1.5"></circle><circle cx="2" cy="38" r="1.5"></circle><circle cx="2" cy="42" r="1.5"></circle><circle cx="2" cy="46" r="1.5"></circle></g>';
 
             // <g> row of dots 1 dot high that spans entire canvas width
-            bytes memory rowDots;
-            rowDots = abi.encodePacked('<g id="', props.rowId, '">');
-            for (uint256 i; i < props.textAreaWidthDots; i++) {
-                rowDots = abi.encodePacked(
-                    rowDots,
+            bytes memory edgeRowDots;
+            edgeRowDots = abi.encodePacked('<g id="', specs.edgeRowId, '">');
+            for (uint256 i; i < specs.textAreaWidthDots; i++) {
+                edgeRowDots = abi.encodePacked(
+                    edgeRowDots,
                     '<circle cx="',
                     Strings.toString(dotSize * i + 2),
                     '" cy="2" r="1.5"></circle>'
                 );
             }
-            rowDots = abi.encodePacked(rowDots, "</g>");
+            edgeRowDots = abi.encodePacked(edgeRowDots, "</g>");
 
             // <g> row of dots with text height that spans entire canvas width
             bytes memory textRowDots;
-            textRowDots = abi.encodePacked('<g id="', props.textRowId, '">');
-            for (uint256 i; i < props.textAreaWidthDots; i++) {
+            textRowDots = abi.encodePacked('<g id="', specs.textRowId, '">');
+            for (uint256 i; i < specs.textAreaWidthDots; i++) {
                 textRowDots = abi.encodePacked(
                     textRowDots,
                     '<use href="#dots1x12" transform="translate(',
@@ -131,9 +129,10 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
             }
             textRowDots = abi.encodePacked(textRowDots, "</g>");
 
-            defs = abi.encodePacked(dots1x12, rowDots, textRowDots);
+            defs = abi.encodePacked(dots1x12, edgeRowDots, textRowDots);
         }
 
+        // Define <style> for svg element
         bytes memory style;
         {
             style = abi.encodePacked(
@@ -144,56 +143,74 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 ' } @font-face { font-family: "Capsules-',
                 Strings.toString(capsule.fontWeight),
                 '"; src: url(data:font/truetype;charset=utf-8;base64,',
-                ITypeface(capsulesTypeface).fontSrc(
+                ITypeface(capsulesTypeface).sourceOf(
                     Font({weight: capsule.fontWeight, style: "normal"})
                 ),
                 ') format("opentype")}</style>'
             );
         }
 
-        bytes memory dotArea;
+        // Content area group will contain dot background and text.
+        bytes memory contentArea;
         {
-            // Create background of dots as <g> group using <use> elements
-            dotArea = abi.encodePacked('<g fill="#', props.hexColor, '"');
-            // If square image, translate dots to center of square
+            // Create <g> element and define color of dots and text.
+            contentArea = abi.encodePacked('<g fill="#', specs.hexColor, '"');
+
+            // If square image, translate contentArea group to center of svg viewbox
             if (square) {
-                dotArea = abi.encodePacked(
-                    dotArea,
+                // Square size of the entire svg (in dots) equal to longest edge, including padding of 2 dots
+                uint256 squareSizeDots = 2;
+                if (specs.textAreaHeightDots >= specs.textAreaWidthDots) {
+                    squareSizeDots += specs.textAreaHeightDots;
+                } else {
+                    squareSizeDots += specs.textAreaWidthDots;
+                }
+
+                contentArea = abi.encodePacked(
+                    contentArea,
                     ' transform="translate(',
                     Strings.toString(
-                        ((props.squareSizeDots - props.textAreaWidthDots) / 2) *
+                        ((squareSizeDots - specs.textAreaWidthDots) / 2) *
                             dotSize
                     ),
                     " ",
                     Strings.toString(
-                        ((props.squareSizeDots - props.textAreaHeightDots) /
-                            2) * dotSize
+                        ((squareSizeDots - specs.textAreaHeightDots) / 2) *
+                            dotSize
                     ),
                     ')"'
                 );
             }
-            dotArea = abi.encodePacked(
-                dotArea,
+
+            // Add dots by tiling edge row and text row elements defined in `defs`.
+
+            // Add top edge row element
+            contentArea = abi.encodePacked(
+                contentArea,
                 '><g opacity="0.3"><use href="#',
-                props.rowId,
+                specs.edgeRowId,
                 '"></use>'
             );
-            for (uint256 i; i < props.linesCount; i++) {
-                dotArea = abi.encodePacked(
-                    dotArea,
+
+            // Add a text row element for each line of text
+            for (uint256 i; i < specs.linesCount; i++) {
+                contentArea = abi.encodePacked(
+                    contentArea,
                     '<use href="#',
-                    props.textRowId,
+                    specs.textRowId,
                     '" transform="translate(0 ',
                     Strings.toString(48 * i + dotSize),
                     ')"></use>'
                 );
             }
-            dotArea = abi.encodePacked(
-                dotArea,
+
+            // Add bottom edge row element and close <g> group element
+            contentArea = abi.encodePacked(
+                contentArea,
                 '<use href="#',
-                props.rowId,
+                specs.edgeRowId,
                 '" transform="translate(0 ',
-                Strings.toString((props.textAreaHeightDots - 1) * dotSize),
+                Strings.toString((specs.textAreaHeightDots - 1) * dotSize),
                 ')"></use></g>'
             );
         }
@@ -201,39 +218,54 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         // Create <g> group of text elements
         bytes memory texts;
         {
-            bytes[8] memory safeText = _htmlSafeText(capsule.text);
-            texts = abi.encodePacked(
-                '<g transform="translate(10 44)" class="capsules-',
-                Strings.toString(capsule.fontWeight),
-                '">'
-            );
-            for (uint256 i = 0; i < props.linesCount; i++) {
+            // Create <g> element for texts and position using translate
+            texts = '<g transform="translate(10 44)">';
+
+            // Add a <text> element for each line of text, excluding trailing empty lines.
+            // Each <text> has its own Y position.
+            // Setting class on individual <text> elements adds css specificity and helps ensure styles are not overwritten by external stylesheets.
+            for (uint256 i; i < specs.linesCount; i++) {
                 texts = abi.encodePacked(
                     texts,
                     '<text y="',
                     Strings.toString(48 * i),
+                    '" class="capsules-',
+                    Strings.toString(capsule.fontWeight),
                     '">',
-                    safeText[i],
+                    htmlSafeLine(capsule.text[i]),
                     "</text>"
                 );
             }
+
+            // Close <g> texts group.
             texts = abi.encodePacked(texts, "</g>");
         }
 
-        dotArea = abi.encodePacked(dotArea, texts, "</g>");
+        // Add texts to content area group and close <g> group.
+        contentArea = abi.encodePacked(contentArea, texts, "</g>");
 
         {
             string memory x;
             string memory y;
             if (square) {
+                // Square size of the entire svg (in dots) equal to longest edge, including padding of 2 dots
+                uint256 squareSizeDots = 2;
+                if (specs.textAreaHeightDots >= specs.textAreaWidthDots) {
+                    squareSizeDots += specs.textAreaHeightDots;
+                } else {
+                    squareSizeDots += specs.textAreaWidthDots;
+                }
+
                 // If square image, use square viewbox
-                x = Strings.toString(props.squareSizeDots * dotSize);
-                y = Strings.toString(props.squareSizeDots * dotSize);
+                x = Strings.toString(squareSizeDots * dotSize);
+                y = Strings.toString(squareSizeDots * dotSize);
             } else {
                 // Else fit to text area
-                x = Strings.toString(props.textAreaWidthDots * dotSize);
-                y = Strings.toString(props.textAreaHeightDots * dotSize);
+                x = Strings.toString(specs.textAreaWidthDots * dotSize);
+                y = Strings.toString(specs.textAreaHeightDots * dotSize);
             }
+
+            // Construct parent svg element with defs, style, and content area groups.
             bytes memory svg = abi.encodePacked(
                 '<svg viewBox="0 0 ',
                 x,
@@ -244,9 +276,11 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 "</defs>",
                 style,
                 '<rect x="0" y="0" width="100%" height="100%" fill="#000"></rect>',
-                dotArea,
+                contentArea,
                 "</svg>"
             );
+
+            // Base64 encode the svg data with prefix
             base64Svg = string(
                 abi.encodePacked(
                     "data:image/svg+xml;base64,",
@@ -258,9 +292,11 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
 
     /// @notice Check if line is empty
     /// @dev Returns true if every byte of text is 0x00
-    function _isEmptyLine(bytes16 line) internal pure returns (bool) {
+    /// @param line line to check if empty
+    /// @return true if line is empty
+    function _isEmptyLine(bytes4[16] memory line) internal pure returns (bool) {
         for (uint256 i; i < 16; i++) {
-            if (line[i] != 0x00) return false;
+            if (line[i] != bytes4(0)) return false;
         }
         return true;
     }
@@ -271,19 +307,35 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
     function _defaultTextOf(bytes3 color)
         internal
         pure
-        returns (bytes16[8] memory defaultText)
+        returns (bytes4[16][8] memory defaultText)
     {
-        defaultText[0] = bytes16("CAPSULE");
-        defaultText[1] = bytes16(
-            abi.encodePacked("#", _bytes3ToHexChars(color))
-        );
+        defaultText[0][0] = bytes4("C");
+        defaultText[0][1] = bytes4("A");
+        defaultText[0][2] = bytes4("P");
+        defaultText[0][3] = bytes4("S");
+        defaultText[0][4] = bytes4("U");
+        defaultText[0][5] = bytes4("L");
+        defaultText[0][6] = bytes4("E");
+
+        bytes memory _color = _bytes3ToHexChars(color);
+        defaultText[1][0] = bytes4("#");
+        defaultText[1][1] = bytes4(_color[0]);
+        defaultText[1][2] = bytes4(_color[1]);
+        defaultText[1][3] = bytes4(_color[2]);
+        defaultText[1][4] = bytes4(_color[3]);
+        defaultText[1][5] = bytes4(_color[4]);
+        defaultText[1][6] = bytes4(_color[5]);
     }
 
-    function _svgPropsOf(Capsule memory capsule)
+    /// @notice Calculate specs used to build SVG for capsule
+    /// @param capsule Capsule to calculate specs for
+    /// @return specs SVG specs calculated for Capsule
+    function _svgSpecsOf(Capsule memory capsule)
         internal
         pure
-        returns (SvgProps memory props)
+        returns (SvgSpecs memory specs)
     {
+        // Calculate number of lines of Capsule text to render. Only trailing empty lines are excluded.
         uint256 linesCount;
         for (uint256 i = 8; i > 0; i--) {
             if (!_isEmptyLine(capsule.text[i - 1])) {
@@ -291,97 +343,99 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
                 break;
             }
         }
-        bytes[8] memory safeText = _htmlSafeText(capsule.text);
+
+        // Calculate the width of the Capsule text in characters. Equal to the number of non-empty characters in the longest line.
         uint256 charWidth;
         for (uint256 i; i < linesCount; i++) {
-            if (safeText[i].length > charWidth) {
-                charWidth = safeText[i].length;
+            // Reverse iterate over line
+            for (uint256 j = 16; j > 0; j--) {
+                if (capsule.text[i][j - 1] != bytes4(0) && j > charWidth) {
+                    charWidth = j;
+                }
             }
         }
 
-        bytes memory rowId;
+        // Define the id of the svg row element.
+        bytes memory edgeRowId;
         if (capsule.isLocked) {
-            rowId = abi.encodePacked("rowL", Strings.toString(charWidth));
+            edgeRowId = abi.encodePacked("rowL", Strings.toString(charWidth));
         } else {
-            rowId = abi.encodePacked("row", Strings.toString(charWidth));
+            edgeRowId = abi.encodePacked("row", Strings.toString(charWidth));
         }
 
-        // Width of the text area in dots
+        // Width of the text area (in dots)
         uint256 textAreaWidthDots = charWidth * 5 + (charWidth - 1) + 6;
-        // Height of the text area in dots
+        // Height of the text area (in dots)
         uint256 textAreaHeightDots = linesCount * 12 + 2;
-        // Square size of the entire svg in dots
-        uint256 squareSizeDots;
-        if (textAreaHeightDots >= textAreaWidthDots) {
-            squareSizeDots = textAreaHeightDots + 2;
-        } else {
-            squareSizeDots = textAreaWidthDots + 2;
-        }
 
-        props = SvgProps({
+        specs = SvgSpecs({
             hexColor: _bytes3ToHexChars(capsule.color),
-            rowId: rowId,
+            edgeRowId: edgeRowId,
             textRowId: abi.encodePacked("textRow", Strings.toString(charWidth)),
             linesCount: linesCount,
             charWidth: charWidth,
             textAreaWidthDots: textAreaWidthDots,
-            textAreaHeightDots: textAreaHeightDots,
-            squareSizeDots: squareSizeDots
+            textAreaHeightDots: textAreaHeightDots
         });
     }
 
     /// @notice Check if all lines of text are empty
-    /// @dev Returns true if every byte of text is 0x00
-    function _isEmptyText(bytes16[8] memory text) internal pure returns (bool) {
+    /// @dev Returns true if every line of text is empty
+    /// @param text Text to check if empty
+    /// @return true if text is empty
+    function _isEmptyText(bytes4[16][8] memory text)
+        internal
+        pure
+        returns (bool)
+    {
         for (uint256 i; i < 8; i++) {
             if (!_isEmptyLine(text[i])) return false;
         }
-
         return true;
     }
 
     /// @notice Returns html-safe version of text
-    /// @dev Iterates through bytes of each line in `text` and replaces each byte as needed
-    function _htmlSafeText(bytes16[8] memory text)
-        internal
+    /// @dev Iterates through bytes of each line in `text` and replaces each byte as needed to create a string that will render in html without issue. Ensures that no illegal characters or 0x00 bytes remain.
+    /// @param line Line of text to check if empty
+    /// @return safeLine text string that can be safely rendered in html.
+    function htmlSafeLine(bytes4[16] memory line)
+        public
         pure
-        returns (bytes[8] memory safeText)
+        returns (string memory safeLine)
     {
-        // Some bytes may not render properly in SVG text, so we replace them with their matching 'html name code'
-        for (uint16 i; i < 8; i++) {
-            bool shouldTrim = true;
+        // Build bytes in reverse to allow trimming trailing whitespace
+        for (uint256 i = 16; i > 0; i--) {
+            bytes4 char = line[i - 1];
 
-            // Build bytes in reverse to allow trimming trailing whitespace
-            for (uint16 j = 16; j > 0; j--) {
-                if (text[i][j - 1] != 0x00 && shouldTrim) shouldTrim = false;
+            // 0x0 bytes should not be rendered.
+            if (char == bytes4(0)) continue;
 
-                if (text[i][j - 1] == 0x3c) {
-                    // Replace `<`
-                    safeText[i] = abi.encodePacked("&lt;", safeText[i]);
-                } else if (text[i][j - 1] == 0x3E) {
-                    // Replace `>`
-                    safeText[i] = abi.encodePacked("&gt;", safeText[i]);
-                } else if (text[i][j - 1] == 0x26) {
-                    // Replace `&`
-                    safeText[i] = abi.encodePacked("&amp;", safeText[i]);
-                } else if (text[i][j - 1] == 0x00) {
-                    // If whitespace has been trimmed, replace `0x00` with space
-                    // Else, add nothing
-                    if (!shouldTrim) {
-                        safeText[i] = abi.encodePacked(
-                            bytes1(0x20),
-                            safeText[i]
+            // Some bytes may not render properly in SVG text, so we replace them with their matching "html name code".
+            if (char == 0x0000003c) {
+                // Replace `<`
+                safeLine = string.concat("&lt;", safeLine);
+            } else if (char == 0x0000003E) {
+                // Replace `>`
+                safeLine = string.concat("&gt;", safeLine);
+            } else if (char == 0x00000026) {
+                // Replace `&`
+                safeLine = string.concat("&amp;", safeLine);
+            } else {
+                // Add bytes4 character while removing individual 0x0 bytes, which cannot be rendered.
+                for (uint256 j = 4; j > 0; j--) {
+                    if (char[j - 1] != bytes1(0)) {
+                        safeLine = string(
+                            abi.encodePacked(char[j - 1], safeLine)
                         );
                     }
-                } else {
-                    // Add unchanged byte
-                    safeText[i] = abi.encodePacked(text[i][j - 1], safeText[i]);
                 }
             }
         }
     }
 
     /// @notice Format bytes3 type to 6 hexadecimal ascii bytes
+    /// @param b bytes3 value to convert to hex characters
+    /// @return o hex character bytes
     function _bytes3ToHexChars(bytes3 b)
         internal
         pure
@@ -404,6 +458,8 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
     }
 
     /// @notice Convert uint8 type to ascii byte
+    /// @param i uint8 value to convert to ascii byte
+    /// @return b ascii byte
     function _uint8toByte(uint8 i) internal pure returns (bytes1 b) {
         uint8 _i = (i > 9)
             ? (i + 87) // ascii a-f

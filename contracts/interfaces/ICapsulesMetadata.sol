@@ -16,4 +16,9 @@ interface ICapsulesMetadata {
         external
         view
         returns (string memory);
+
+    function htmlSafeLine(bytes4[16] memory line)
+        external
+        pure
+        returns (string memory safeText);
 }

@@ -9,14 +9,16 @@ import {
 } from "../typechain-types";
 import {
   capsulesContract,
+  capsulesMetadataContract,
   capsulesTypefaceContract,
   deployCapsulesMetadata,
   deployCapsulesToken,
   deployCapsulesTypeface,
   emptyNote,
-  formatBytes16,
   mintPrice,
   mintValidUnlockedCapsules,
+  stringToBytes4Line,
+  textToBytes4Lines,
   totalSupply,
   wallets,
 } from "./utils";
@@ -42,9 +44,7 @@ describe("Capsules", async () => {
       expectedCapsulesTokenAddress
     );
 
-    capsulesMetadata = await deployCapsulesMetadata(
-      capsulesTypeface.address
-    );
+    capsulesMetadata = await deployCapsulesMetadata(capsulesTypeface.address);
 
     capsulesToken = await deployCapsulesToken(
       capsulesTypeface.address,
@@ -72,7 +72,9 @@ describe("Capsules", async () => {
         capsulesTypeface.address
       );
 
-      expect(await capsules.capsulesMetadata()).to.equal(capsulesMetadata.address)
+      expect(await capsules.capsulesMetadata()).to.equal(
+        capsulesMetadata.address
+      );
     });
   });
 
@@ -107,28 +109,28 @@ describe("Capsules", async () => {
 
       const ownerCapsulesTypeface = capsulesTypefaceContract(owner);
 
-      const _fonts = Object.keys(fonts).map((weight) => ({
-        weight: parseInt(weight) as keyof typeof fonts,
-        style: "normal",
-      }));
+      // const _fonts = Object.keys(fonts).map((weight) => ({
+      //   weight: parseInt(weight) as keyof typeof fonts,
+      //   style: "normal",
+      // }));
 
-      // Estimate gas to store all fonts
-      for (let i = 0; i < _fonts.length; i++) {
-        const weight = _fonts[i].weight;
+      // // Estimate gas to store all fonts
+      // for (let i = 0; i < _fonts.length; i++) {
+      //   const weight = _fonts[i].weight;
 
-        const gas = await capsulesTypeface.estimateGas.setFontSrc(
-          _fonts[i],
-          Buffer.from(fonts[weight])
-        );
+      //   const gas = await capsulesTypeface.estimateGas.setFontSrc(
+      //     _fonts[i],
+      //     Buffer.from(fonts[weight])
+      //   );
 
-        console.log(
-          "Gas for",
-          weight,
-          "=> " +
-            (gas.toNumber() * gasPrice).toString().substring(0, 6) +
-            " ETH"
-        );
-      }
+      //   console.log(
+      //     "Gas for",
+      //     weight,
+      //     "=> " +
+      //       (gas.toNumber() * gasPrice).toString().substring(0, 6) +
+      //       " ETH"
+      //   );
+      // }
 
       await expect(
         ownerCapsulesTypeface.setFontSrc(
@@ -151,17 +153,24 @@ describe("Capsules", async () => {
       ).to.be.revertedWith("Typeface: Invalid font");
 
       // Store first font
-      await expect(
-        ownerCapsulesTypeface.setFontSrc(
-          {
-            weight: 400,
-            style: "normal",
-          },
-          Buffer.from(fonts[400])
-        )
-      )
+      const normal400Font = {
+        weight: 400,
+        style: "normal",
+      };
+      const normal400Src = Buffer.from(fonts[400]);
+      const event = ownerCapsulesTypeface.setFontSrc(
+        normal400Font,
+        normal400Src
+      );
+      // const receipt = await (await event).wait();
+      // for (const event of receipt.events ?? []) {
+      //   if (event.event == "SetSource")
+      //     console.log("asdf", event.event, event.args);
+      // }
+      await expect(event)
         .to.emit(capsulesToken, "MintCapsule")
-        .and.to.emit(capsulesTypeface, "SetFontSrc");
+        .and.to.emit(capsulesTypeface, "SetSource")
+        // .withArgs([400, "normal"], normal400Src);
 
       // Owner should receive Capsule NFT
       expect(await capsulesToken.balanceOf(owner.address)).to.equal(1);
@@ -181,7 +190,7 @@ describe("Capsules", async () => {
           },
           Buffer.from(fonts[400])
         )
-      ).to.be.revertedWith("Typeface: font src already exists");
+      ).to.be.revertedWith("Typeface: font source already exists");
     });
   });
 
@@ -235,26 +244,31 @@ describe("Capsules", async () => {
 
       const color = "0x0005ff";
 
+      const x = (await totalSupply()).add(1);
+
+      const text = textToBytes4Lines([""]);
+
       await expect(
-        minter1Capsules.mint(color, emptyNote, fontWeight, false, {
+        minter1Capsules.mint(color, text, fontWeight, false, {
           value: mintPrice,
         })
-      )
-        .to.emit(minter1Capsules, "MintCapsule")
-        .withArgs(
-          (await totalSupply()).add(1),
-          minter1.address,
-          color,
-          emptyNote,
-          fontWeight
-        );
+      ).to.emit(minter1Capsules, "MintCapsule");
+      // .withArgs(x, minter1.address, color, text, fontWeight);
 
       // console.log(
       //   await minter1Capsules.textOf(1, 0),
       //   await minter1Capsules.textOf(1, 7)
       // );
-      // console.log('capsuleFor',await minter1Capsules.capsuleFor(1));
-      // console.log('svgOf square',await minter1Capsules.svgOf(1, true));
+      // console.log('capsuleOf', (await minter1Capsules.capsuleOf(x)).text, (await minter1Capsules.capsuleOf(x)).safeText);
+      // console.log("test", await capsulesContract(minter1).test());
+      // console.log(
+      //   "capsule",
+      //   await capsulesMetadataContract(minter1).htmlSafeLine(text[0]),
+      //   (await capsulesMetadataContract(minter1).htmlSafeLine(text[0])).length
+      // );
+      // console.log("capsule", await capsulesContract(minter1).capsuleOf(x));
+      // console.log("totalsupply", await minter1Capsules.totalSupply());
+      // console.log("svgOf square", await minter1Capsules.svgOf(x, true));
       // console.log('svgOf notsquare',await minter1Capsules.svgOf(1, false));
     });
 
@@ -270,16 +284,28 @@ describe("Capsules", async () => {
           value: mintPrice,
         })
       ).to.be.revertedWith(
-        `ColorAlreadyMinted(${await capsulesToken.capsuleForColor(color)})`
+        `ColorAlreadyMinted(${await capsulesToken.tokenIdOfColor(color)})`
       );
     });
 
     it("Edit non-owned capsule should revert", async () => {
-      const { minter2 } = await wallets();
+      const { minter1, minter2 } = await wallets();
 
       const id = 2;
 
       expect(await capsulesToken.ownerOf(id)).to.not.equal(minter2.address);
+
+      const gas = await capsulesContract(minter1).estimateGas.editCapsule(
+        id,
+        emptyNote,
+        400,
+        false
+      );
+
+      console.log(
+        "Gas to edit capsule",
+        "=> " + (gas.toNumber() * gasPrice).toString().substring(0, 6) + " ETH"
+      );
 
       await expect(
         capsulesContract(minter2).editCapsule(id, emptyNote, 400, false)
@@ -316,20 +342,22 @@ describe("Capsules", async () => {
       await expect(
         capsulesContract(minter1).editCapsule(
           id,
-          [
-            formatBytes16("👽"),
-            formatBytes16(' "two"? @ # $ %'),
-            formatBytes16("  three ` & <>"),
-            formatBytes16("   'four'; < "),
-            formatBytes16("    five ..."),
-            formatBytes16("{   6   } []()|"),
-            formatBytes16("> max length 15"),
-            formatBytes16("> max length 15"),
-          ],
+          textToBytes4Lines([
+            "👽",
+            ' "two"? @ # $ %',
+            "  three ` & <>",
+            "   'four'; < ",
+            "    five ...",
+            "{   6   } []()|",
+            "> max length 15",
+            "> max length 15",
+          ]),
           400,
           false
         )
       ).to.be.revertedWith("InvalidText()");
+
+      // console.log('svgOf square',id, await capsulesContract(minter1).svgOf(id, true));
     });
 
     // it("Should mint all capsules", async () => {
