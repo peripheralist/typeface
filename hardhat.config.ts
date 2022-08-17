@@ -1,6 +1,7 @@
 import "hardhat-deploy";
 import "hardhat-deploy-ethers";
 import "hardhat-contract-sizer";
+import "hardhat-gas-reporter";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-waffle";
@@ -74,7 +75,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200,
+        runs: 1000,
       },
     },
   },
@@ -96,5 +97,10 @@ module.exports = {
     target: "ethers-v5",
     alwaysGenerateOverloads: false, // should overloads with full signatures like deposit(uint256) be generated always, even if there are no overloads?
     // externalArtifacts: ["externalArtifacts/*.json"], // optional array of glob patterns with external artifacts to process (for example external libs from node_modules)
+  },
+  gasReporter: {
+    currency: "USD",
+    gasPrice: 20,
+    coinmarketcap: "cde088de-a8a7-493c-84d8-e9ecd6fac3a9",
   },
 };

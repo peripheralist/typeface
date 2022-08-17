@@ -34,9 +34,6 @@ contract CapsulesTypeface is Typeface {
         internal
         override(Typeface)
     {
-        // Empty text
-        bytes4[16][8] memory text;
-
-        capsulesToken.mintPureColorForFontWeight(msg.sender, font.weight, text);
+        capsulesToken.mintPureColorForFontWeight(msg.sender, font.weight);
     }
 }

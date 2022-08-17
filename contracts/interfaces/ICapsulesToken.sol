@@ -21,8 +21,14 @@ interface ICapsulesToken {
         uint256 indexed id,
         address indexed to,
         bytes3 indexed color,
-        bytes4[16][8] text,
         uint256 fontWeight
+    );
+    event MintCapsuleWithText(
+        uint256 indexed id,
+        address indexed to,
+        bytes3 indexed color,
+        uint256 fontWeight,
+        bytes4[16][8] text
     );
     event SetCapsulesMetadata(address _capsulesMetadata);
     event SetCreatorFeeReceiver(address _address);
@@ -51,18 +57,20 @@ interface ICapsulesToken {
         view
         returns (string memory);
 
-    function mint(
-        bytes3 color,
-        bytes4[16][8] calldata text,
-        uint256 fontWeight,
-        bool lock
-    ) external payable returns (uint256);
+    function mint(bytes3 color, uint256 fontWeight)
+        external
+        payable
+        returns (uint256);
 
-    function mintPureColorForFontWeight(
-        address to,
+    function mintWithText(
+        bytes3 color,
         uint256 fontWeight,
         bytes4[16][8] calldata text
-    ) external returns (uint256 capsuleId);
+    ) external payable returns (uint256);
+
+    function mintPureColorForFontWeight(address to, uint256 fontWeight)
+        external
+        returns (uint256 capsuleId);
 
     function lockCapsule(uint256 capsuleId) external;
 

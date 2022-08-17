@@ -19,10 +19,11 @@ export const totalSupply = async () => await capsulesContract().totalSupply();
 export const indent = "      " + chalk.bold("- ");
 
 export const textToBytes4Lines = (text: string[]) => {
-  const emptyText = ["", "", "", "", "", "", "", ""];
-  return [...emptyText, ...text]
-    .filter((_, i) => i < 8)
-    .map(stringToBytes4Line);
+  const lines = [];
+  for (let i = 0; i < 8; i++) {
+    lines.push(stringToBytes4Line(text.length > i ? text[i] : undefined));
+  }
+  return lines;
 };
 
 export const stringToBytes4Line = (str?: string) => {
@@ -80,7 +81,7 @@ export async function mintValidUnlockedCapsules(
 
   for (let i = 0; i < _count; i++) {
     await capsules
-      .mint(validHexes[i], emptyNote, 400, false, {
+      .mint(validHexes[i], 400, {
         value: mintPrice,
         gasLimit: 30000000,
       })
@@ -120,15 +121,10 @@ export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
     capsulesTokenAddress
   )) as CapsulesTypeface;
 
-  const tx = await capsulesTypeface.deployTransaction.wait();
-  const price = 50 * 0.000000001;
-
   console.log(
     indent +
       "Deployed CapsulesTypeface " +
-      chalk.magenta(capsulesTypeface.address) +
-      " Gas: " +
-      tx.gasUsed.toNumber() * price
+      chalk.magenta(capsulesTypeface.address)
   );
 
   return capsulesTypeface;
@@ -153,15 +149,8 @@ export async function deployCapsulesToken(
 
   await capsules.transferOwnership(owner.address);
 
-  const tx = await capsules.deployTransaction.wait();
-  const price = 50 * 0.000000001;
-
   console.log(
-    indent +
-      "Deployed CapsulesToken " +
-      chalk.magenta(capsules.address) +
-      " Gas: " +
-      tx.gasUsed.toNumber() * price
+    indent + "Deployed CapsulesToken " + chalk.magenta(capsules.address)
   );
 
   return capsules;
@@ -174,15 +163,10 @@ export async function deployCapsulesMetadata(capsulesTypefaceAddress: string) {
     capsulesTypefaceAddress
   )) as CapsulesMetadata;
 
-  const tx = await capsulesMetadata.deployTransaction.wait();
-  const price = 50 * 0.000000001;
-
   console.log(
     indent +
       "Deployed CapsulesMetadata " +
-      chalk.magenta(capsulesMetadata.address) +
-      " Gas: " +
-      tx.gasUsed.toNumber() * price
+      chalk.magenta(capsulesMetadata.address)
   );
 
   return capsulesMetadata;

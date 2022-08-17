@@ -54,7 +54,7 @@ contract CapsulesToken is
     }
 
     /// @notice Require that the text is valid
-    modifier onlyValidText(bytes4[16][8] calldata text) {
+    modifier onlyValidText(bytes4[16][8] memory text) {
         if (!_isValidText(text)) revert InvalidText();
         _;
     }
@@ -65,8 +65,10 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that the color is valid
-    modifier onlyValidColor(bytes3 color) {
+    /// @notice Require that the color is valid and unminted
+    modifier onlyMintableColor(bytes3 color) {
+        uint256 capsuleId = tokenIdOfColor[color];
+        if (_exists(capsuleId)) revert ColorAlreadyMinted(capsuleId);
         if (!_isValidColor(color)) revert InvalidColor();
         _;
     }
@@ -86,13 +88,6 @@ contract CapsulesToken is
     /// @notice Require that the capsule is unlocked
     modifier onlyUnlockedCapsule(uint256 capsuleId) {
         if (isLocked(capsuleId)) revert CapsuleLocked();
-        _;
-    }
-
-    /// @notice Require that the color is not minted
-    modifier onlyUnmintedColor(bytes3 color) {
-        uint256 capsuleId = tokenIdOfColor[color];
-        if (_exists(capsuleId)) revert ColorAlreadyMinted(capsuleId);
         _;
     }
 
@@ -158,9 +153,6 @@ contract CapsulesToken is
     /// CapsulesMetadata contract address cannot be updated if locked
     bool public metadataLocked;
 
-    // /// Mapping of Capsule ID to Capsule data
-    // mapping(uint256 => Capsule) internal _capsuleOf;
-
     /// Mapping of Capsule ID to text
     mapping(uint256 => bytes4[16][8]) internal _textOf;
 
@@ -176,6 +168,87 @@ contract CapsulesToken is
     /* -------------------------------------------------------------------------- */
     /* --------------------------- EXTERNAL FUNCTIONS --------------------------- */
     /* -------------------------------------------------------------------------- */
+
+    /// @notice Mints a Capsule to sender, saving gas by not setting text.
+    /// @dev Requires active sale, min value of `MINT_PRICE`, valid font weight, unminted & impure color.
+    /// @param color Color for Capsule.
+    /// @param fontWeight FontWeight of Capsule.
+    /// @return capsuleId ID of minted Capsule.
+    function mint(bytes3 color, uint256 fontWeight)
+        external
+        payable
+        requireMintPrice
+        onlyImpureColor(color)
+        nonReentrant
+        returns (uint256 capsuleId)
+    {
+        capsuleId = _mintCapsule(msg.sender, color, fontWeight);
+    }
+
+    /// @notice Mint a Capsule to sender while setting its text.
+    /// @dev Requires active sale, min value of `MINT_PRICE`, valid font weight, unminted & impure color.
+    /// @param color Color for Capsule.
+    /// @param fontWeight FontWeight of Capsule.
+    /// @param text Text for Capsule. 8 lines of 16 bytes3 characters in 2d array.
+    /// @return capsuleId ID of minted Capsule.
+    function mintWithText(
+        bytes3 color,
+        uint256 fontWeight,
+        bytes4[16][8] calldata text
+    )
+        external
+        payable
+        whenNotPaused
+        requireMintPrice
+        onlyMintableColor(color)
+        onlyImpureColor(color)
+        onlyValidFontWeight(fontWeight)
+        onlyValidText(text)
+        nonReentrant
+        returns (uint256 capsuleId)
+    {
+        address to = msg.sender;
+
+        _mint(to, 1, new bytes(0), false);
+
+        capsuleId = _storeNewCapsuleData(color, fontWeight);
+
+        _textOf[capsuleId] = text;
+
+        emit MintCapsuleWithText(capsuleId, to, color, fontWeight, text);
+    }
+
+    /// @notice Mint a Capsule to sender.
+    /// @dev Requires active sale and pure color. No option to lock Capsule.
+    /// @param fontWeight fontWeight of Capsule.
+    /// @return capsuleId ID of minted Capsule.
+    function mintPureColorForFontWeight(address to, uint256 fontWeight)
+        external
+        onlyCapsulesTypeface
+        nonReentrant
+        returns (uint256 capsuleId)
+    {
+        capsuleId = _mintCapsule(
+            to,
+            pureColorForFontWeight(fontWeight),
+            fontWeight
+        );
+    }
+
+    /// @notice Allows Capsule owner to permanently lock the Capsule, preventing it from being edited.
+    /// @param capsuleId ID of Capsule to lock.
+    function lockCapsule(uint256 capsuleId) external {
+        _lockCapsule(capsuleId);
+    }
+
+    /// @notice Withdraws balance of this contract to the creatorFeeReceiver address.
+    function withdraw() external nonReentrant {
+        uint256 balance = address(this).balance;
+
+        payable(creatorFeeReceiver).transfer(balance);
+
+        emit Withdraw(creatorFeeReceiver, balance);
+    }
 
     /// @notice Return token URI for Capsule.
     /// @param capsuleId ID of Capsule token.
@@ -232,8 +305,12 @@ contract CapsulesToken is
     /// @param color Color to check validity of.
     /// @return true True if color is pure.
     function isPureColor(bytes3 color) public view returns (bool) {
-        for (uint256 i; i < pureColors.length; i++) {
-            if (color == pureColors[i]) return true;
+        bytes3[] memory _pureColors = pureColors;
+
+        unchecked {
+            for (uint256 i; i < _pureColors.length; i++) {
+                if (color == _pureColors[i]) return true;
+            }
         }
 
         return false;
@@ -244,74 +321,6 @@ contract CapsulesToken is
     /// @return true True if Capsule is locked.
     function isLocked(uint256 capsuleId) public view returns (bool) {
         return _locked[capsuleId];
-    }
-
-    /// @notice Mints a Capsule to sender.
-    /// @dev Requires active sale, min value of `MINT_PRICE`, and impure color.
-    /// @param color Color for Capsule.
-    /// @param text Text for Capsule. 8 lines of 16 bytes3 characters in 2d array.
-    /// @param fontWeight FontWeight of Capsule.
-    /// @param lock Permanently prevent Capsule from being edited.
-    /// @return capsuleId ID of minted Capsule.
-    function mint(
-        bytes3 color,
-        bytes4[16][8] calldata text,
-        uint256 fontWeight,
-        bool lock
-    )
-        external
-        payable
-        onlyImpureColor(color)
-        whenNotPaused
-        requireMintPrice
-        nonReentrant
-        returns (uint256 capsuleId)
-    {
-        capsuleId = _mintCapsule(msg.sender, color, text, fontWeight, lock);
-    }
-
-    /// @notice Mints Capsule to sender.
-    /// @dev Requires active sale and pure color. No option to lock Capsule.
-    /// @param fontWeight fontWeight of Capsule.
-    /// @param text Text for Capsule. 8 lines of 16 bytes3 characters in 2d array.
-    /// @return capsuleId ID of minted Capsule.
-    function mintPureColorForFontWeight(
-        address to,
-        uint256 fontWeight,
-        bytes4[16][8] calldata text
-    )
-        external
-        onlyCapsulesTypeface
-        whenNotPaused
-        nonReentrant
-        returns (uint256 capsuleId)
-    {
-        capsuleId = _mintCapsule(
-            to,
-            pureColorForFontWeight(fontWeight),
-            text,
-            fontWeight,
-            false
-        );
-    }
-
-    /// @notice Allows Capsule owner to permanently lock the Capsule, preventing it from being edited.
-    /// @param capsuleId ID of Capsule to lock.
-    function lockCapsule(uint256 capsuleId)
-        external
-        onlyCapsuleOwner(capsuleId)
-        nonReentrant
-    {
-        _lockCapsule(capsuleId);
-    }
-
-    /// @notice Withdraws balance of this contract to the creatorFeeReceiver address.
-    function withdraw() external nonReentrant {
-        uint256 balance = address(this).balance;
-
-        payable(creatorFeeReceiver).transfer(balance);
-
-        emit Withdraw(creatorFeeReceiver, balance);
     }
 
     /// @notice Returns the pure color matching a specific font weight.
@@ -377,7 +386,6 @@ contract CapsulesToken is
         onlyUnlockedCapsule(capsuleId)
         onlyValidText(text)
         onlyValidFontWeight(fontWeight)
-        nonReentrant
     {
         _textOf[capsuleId] = text;
         _fontWeightOf[capsuleId] = fontWeight;
@@ -389,11 +397,7 @@ contract CapsulesToken is
 
     /// @notice Burns a Capsule token.
     /// @param capsuleId ID of Capsule token to burn.
-    function burn(uint256 capsuleId)
-        external
-        onlyCapsuleOwner(capsuleId)
-        nonReentrant
-    {
+    function burn(uint256 capsuleId) external onlyCapsuleOwner(capsuleId) {
         _burn(capsuleId);
     }
 
@@ -458,50 +462,42 @@ contract CapsulesToken is
     /* --------------------------- INTERNAL FUNCTIONS --------------------------- */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice ERC721A override to start tokenId's at 1 instead of 0.
+    /// @notice ERC721A override to start tokenId at 1 instead of 0.
     function _startTokenId() internal pure override returns (uint256) {
         return 1;
     }
 
-    /// @notice Mints a Capsule to sender.
+    /// @notice Mints a Capsule.
     /// @dev Stores Capsule data in `_capsuleOf`, and mapping `tokenIdOfColor`.
+    /// @param to Address to receive capsule.
     /// @param color Color of Capsule.
-    /// @param text Text for Capsule. 8 lines of 16 bytes3 characters in 2d array.
     /// @param fontWeight FontWeight of Capsule.
-    /// @param lock Permanently prevent Capsule from being edited.
     /// @return capsuleId ID of minted Capsule.
     function _mintCapsule(
         address to,
         bytes3 color,
-        bytes4[16][8] calldata text,
-        uint256 fontWeight,
-        bool lock
+        uint256 fontWeight
     )
         internal
-        onlyValidColor(color)
-        onlyUnmintedColor(color)
+        whenNotPaused
+        onlyMintableColor(color)
         onlyValidFontWeight(fontWeight)
         returns (uint256 capsuleId)
     {
         _mint(to, 1, new bytes(0), false);
 
-        capsuleId = _currentIndex - 1;
+        capsuleId = _storeNewCapsuleData(color, fontWeight);
 
-        tokenIdOfColor[color] = capsuleId;
-        _colorOf[capsuleId] = color;
-        _textOf[capsuleId] = text;
-        _fontWeightOf[capsuleId] = fontWeight;
-
-        emit MintCapsule(capsuleId, to, color, text, fontWeight);
-
-        if (lock) _lockCapsule(capsuleId);
+        emit MintCapsule(capsuleId, to, color, fontWeight);
     }
 
     function _lockCapsule(uint256 capsuleId)
         internal
+        onlyCapsuleOwner(capsuleId)
         onlyUnlockedCapsule(capsuleId)
     {
         _locked[capsuleId] = true;
+
         emit LockCapsule(capsuleId);
     }
 
@@ -514,17 +510,19 @@ contract CapsulesToken is
         view
         returns (bool)
     {
-        for (uint256 i; i < 8; i++) {
-            bytes4[16] memory line = text[i];
+        unchecked {
+            for (uint256 i; i < 8; i++) {
+                bytes4[16] memory line = text[i];
 
-            for (uint256 j; j < 16; j++) {
-                bytes4 char = line[j];
+                for (uint256 j; j < 16; j++) {
+                    bytes4 char = line[j];
 
-                if (
-                    !ITypeface(capsulesTypeface).isAllowedChar(char) &&
-                    char != bytes4(0)
-                ) {
-                    return false;
+                    if (
+                        !ITypeface(capsulesTypeface).isAllowedChar(char) &&
+                        char != bytes4(0)
+                    ) {
+                        return false;
+                    }
                 }
             }
         }
@@ -542,9 +540,9 @@ contract CapsulesToken is
         returns (bool)
     {
         return
-            ITypeface(capsulesTypeface)
-                .sourceOf(Font({weight: fontWeight, style: "normal"}))
-                .length > 0;
+            ITypeface(capsulesTypeface).hasSource(
+                Font({weight: fontWeight, style: "normal"})
+            );
     }
 
     /// @notice Check if color is valid.
@@ -558,10 +556,23 @@ contract CapsulesToken is
         }
 
         // All bytes must be divisible by 5
-        for (uint256 i; i < 3; i++) {
-            if (uint8(color[i]) % 5 != 0) return false;
+        unchecked {
+            for (uint256 i; i < 3; i++) {
+                if (uint8(color[i]) % 5 != 0) return false;
+            }
         }
 
         return true;
+    }
+
+    function _storeNewCapsuleData(bytes3 color, uint256 fontWeight)
+        private
+        returns (uint256 capsuleId)
+    {
+        capsuleId = _currentIndex - 1;
+
+        tokenIdOfColor[color] = capsuleId;
+        _colorOf[capsuleId] = color;
+        _fontWeightOf[capsuleId] = fontWeight;
     }
 }

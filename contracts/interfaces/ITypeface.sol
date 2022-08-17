@@ -27,6 +27,11 @@ interface ITypeface {
     function sourceOf(Font memory font) external view returns (bytes memory);
 
     /**
+     * @notice Return source bytes for Font.
+     */
+    function hasSource(Font memory font) external view returns (bool);
+
+    /**
      * @notice Sets the source bytes for a font
      */
     function setFontSrc(Font memory font, bytes memory src) external;

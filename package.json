@@ -11,8 +11,8 @@
     "test": "npx hardhat test"
   },
   "dependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@nomiclabs/hardhat-ethers": "^2.1.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@typechain/ethers-v5": "^9.0.0",
     "@typechain/hardhat": "^5.0.0",
     "@types/chai": "^4.3.0",
@@ -27,7 +27,7 @@
     "typescript": "^4.6.2"
   },
   "devDependencies": {
-    "@nomiclabs/hardhat-etherscan": "^3.0.1",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
     "@openzeppelin/contracts": "4.5.0",
     "chalk": "^4.1.1",
     "fs": "^0.0.1-security",
@@ -35,6 +35,7 @@
     "hardhat-contract-sizer": "^2.5.1",
     "hardhat-deploy": "^0.8.9",
     "hardhat-deploy-ethers": "^0.3.0-beta.10",
+    "hardhat-gas-reporter": "^1.0.8",
     "sol-merger": "^3.1.0"
   }
 }

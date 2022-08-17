@@ -4,11 +4,14 @@ pragma solidity ^0.8.0;
 import "./interfaces/ITypeface.sol";
 
 abstract contract Typeface is ITypeface {
-    /// Mapping of weight => style => font source data as bytes
+    /// Mapping of weight => style => font source data as bytes.
     mapping(uint256 => mapping(string => bytes)) private _source;
 
-    /// Mapping of weight => style => keccack256 hash of font source data as bytes
+    /// Mapping of weight => style => keccack256 hash of font source data as bytes.
     mapping(uint256 => mapping(string => bytes32)) private _sourceHash;
+
+    /// Mapping of weight => style => true if font source has been stored.
+    mapping(uint256 => mapping(string => bool)) private _hasSource;
 
     /// Typeface name
     string private _name;
@@ -30,6 +33,12 @@ abstract contract Typeface is ITypeface {
         return _source[font.weight][font.style];
     }
 
+    /// @notice Return source bytes for font.
+    /// @return source Font data as bytes
+    function hasSource(Font memory font) public view virtual returns (bool) {
+        return _hasSource[font.weight][font.style];
+    }
+
     /// @notice Return hash of source bytes for font.
     /// @return _hash hash of source bytes for font
     function sourceHash(Font memory font)
@@ -47,7 +56,7 @@ abstract contract Typeface is ITypeface {
     ///  @param source Font data as bytes
     function setFontSrc(Font memory font, bytes memory source) public {
         require(
-            _source[font.weight][font.style].length == 0,
+            _hasSource[font.weight][font.style] == false,
             "Typeface: font source already exists"
         );
 
@@ -59,6 +68,7 @@ abstract contract Typeface is ITypeface {
         beforeSetSource(font, source);
 
         _source[font.weight][font.style] = source;
+        _hasSource[font.weight][font.style] = true;
 
         emit SetSource(font, source);
 
