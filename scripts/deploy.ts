@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { fonts } from "../fonts";
 import { reservedColors } from "../reservedColors";
 import {
-  CapsulesMetadata,
+  CapsulesRenderer,
   CapsulesToken,
   CapsulesTypeface,
 } from "../typechain-types";
@@ -94,40 +94,40 @@ const deployCapsulesTypeface = async (
   return capsulesTypeface;
 };
 
-export async function deployCapsulesMetadata(capsulesTypefaceAddress: string) {
+export async function deployCapsulesRenderer(capsulesTypefaceAddress: string) {
   const deployer = await getDeployer();
-  console.log("Deploying CapsulesMetadata with the account:", deployer.address);
+  console.log("Deploying CapsulesRenderer with the account:", deployer.address);
 
-  const CapsulesMetadata = await ethers.getContractFactory("CapsulesMetadata");
+  const CapsulesRenderer = await ethers.getContractFactory("CapsulesRenderer");
 
   const args = [
     capsulesTypefaceAddress
   ]
 
-  const capsulesMetadata = (await CapsulesMetadata.deploy(
+  const capsulesRenderer = (await CapsulesRenderer.deploy(
     ...args
-  )) as CapsulesMetadata;
+  )) as CapsulesRenderer;
 
   console.log(
-    chalk.green(` ✔ CapsulesMetadata deployed for network:`),
+    chalk.green(` ✔ CapsulesRenderer deployed for network:`),
     process.env.HARDHAT_NETWORK,
     "\n",
-    chalk.magenta(capsulesMetadata.address),
-    `tx: ${capsulesMetadata.deployTransaction.hash}`
+    chalk.magenta(capsulesRenderer.address),
+    `tx: ${capsulesRenderer.deployTransaction.hash}`
   );
 
   writeFiles(
-    "CapsulesMetadata",
-    capsulesMetadata.address,
+    "CapsulesRenderer",
+    capsulesRenderer.address,
     args.map((a) => JSON.stringify(a))
   );
 
-  return capsulesMetadata;
+  return capsulesRenderer;
 }
 
 const deployCapsulesToken = async (
   capsulesTypefaceAddress: string,
-  capsulesMetadataAddress: string,
+  capsulesRendererAddress: string,
 ): Promise<CapsulesToken> => {
   const deployer = await getDeployer();
   console.log("Deploying CapsulesToken with the account:", deployer.address);
@@ -136,7 +136,7 @@ const deployCapsulesToken = async (
 
   const args = [
     capsulesTypefaceAddress,
-    capsulesMetadataAddress,
+    capsulesRendererAddress,
     feeReceiverAddress,
     reservedColors,
     royalty,
@@ -181,13 +181,13 @@ const main = async () => {
     expectedCapsulesTokenAddress
   );
 
-  const capsulesMetadata = await deployCapsulesMetadata(
+  const capsulesRenderer = await deployCapsulesRenderer(
     capsulesTypeface.address
   );
 
   await deployCapsulesToken(
     capsulesTypeface.address,
-    capsulesMetadata.address,
+    capsulesRenderer.address,
   );
 
   console.log("Done");

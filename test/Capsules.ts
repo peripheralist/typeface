@@ -3,15 +3,15 @@ import { utils } from "ethers";
 
 import { fonts } from "../fonts";
 import {
-  CapsulesMetadata,
+  CapsulesRenderer,
   CapsulesToken,
   CapsulesTypeface,
 } from "../typechain-types";
 import {
   capsulesContract,
-  capsulesMetadataContract,
+  capsulesRendererContract,
   capsulesTypefaceContract,
-  deployCapsulesMetadata,
+  deployCapsulesRenderer,
   deployCapsulesToken,
   deployCapsulesTypeface,
   emptyNote,
@@ -25,7 +25,7 @@ import {
 
 export let capsulesTypeface: CapsulesTypeface;
 export let capsulesToken: CapsulesToken;
-export let capsulesMetadata: CapsulesMetadata;
+export let capsulesRenderer: CapsulesRenderer;
 
 describe("Capsules", async () => {
   before(async () => {
@@ -41,11 +41,11 @@ describe("Capsules", async () => {
       expectedCapsulesTokenAddress
     );
 
-    capsulesMetadata = await deployCapsulesMetadata(capsulesTypeface.address);
+    capsulesRenderer = await deployCapsulesRenderer(capsulesTypeface.address);
 
     capsulesToken = await deployCapsulesToken(
       capsulesTypeface.address,
-      capsulesMetadata.address
+      capsulesRenderer.address
     );
   });
 
@@ -65,12 +65,12 @@ describe("Capsules", async () => {
         capsulesToken.address
       );
 
-      expect(await capsulesMetadata.capsulesTypeface()).to.equal(
+      expect(await capsulesRenderer.capsulesTypeface()).to.equal(
         capsulesTypeface.address
       );
 
-      expect(await capsules.capsulesMetadata()).to.equal(
-        capsulesMetadata.address
+      expect(await capsules.capsulesRenderer()).to.equal(
+        capsulesRenderer.address
       );
     });
   });
@@ -165,7 +165,7 @@ describe("Capsules", async () => {
         capsulesTypefaceContract(owner).setFontSrc(normal400Font, normal400Src)
       )
         .to.emit(capsulesToken, "MintCapsule")
-        .withArgs(1, owner.address, "0x00ffff", 400)
+        .withArgs(1, owner.address, "0x00ffff")
         .to.emit(capsulesTypeface, "SetSource");
       // .withArgs([400, "normal"], normal400Src); // Args comparison failing
     });
@@ -265,7 +265,7 @@ describe("Capsules", async () => {
         })
       )
         .to.emit(minter1Capsules, "MintCapsule")
-        .withArgs(2, minter1.address, color, fontWeight);
+        .withArgs(2, minter1.address, color);
     });
 
     it("Mint with valid color and text should succeed", async () => {
@@ -283,8 +283,9 @@ describe("Capsules", async () => {
         minter1Capsules.mintWithText(color, fontWeight, text, {
           value: mintPrice,
         })
-      ).to.emit(minter1Capsules, "MintCapsuleWithText");
-      // .withArgs(3, minter1.address, color, fontWeight, text); // Args comparison failing
+      )
+        .to.emit(minter1Capsules, "MintCapsule")
+        .withArgs(3, minter1.address, color);
     });
 
     it("Mint already minted color should revert", async () => {

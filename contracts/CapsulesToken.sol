@@ -15,7 +15,7 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "./ERC721A.sol";
-import "./interfaces/ICapsulesMetadata.sol";
+import "./interfaces/ICapsulesRenderer.sol";
 import "./interfaces/ICapsulesToken.sol";
 import "./interfaces/ITypeface.sol";
 
@@ -28,7 +28,7 @@ error NotCapsulesTypeface();
 error ColorAlreadyMinted(uint256 capsuleId);
 error NotCapsuleOwner(address owner);
 error CapsuleLocked();
-error CapsuleMetadataLocked();
+error CapsuleRendererLocked();
 
 contract CapsulesToken is
     ICapsulesToken,
@@ -98,9 +98,9 @@ contract CapsulesToken is
         _;
     }
 
-    /// @notice Require that metadata has not been locked
-    modifier onlyIfMetadataUnlocked() {
-        if (metadataLocked) revert CapsuleMetadataLocked();
+    /// @notice Require that renderer has not been locked
+    modifier onlyIfRendererUnlocked() {
+        if (rendererLocked) revert CapsuleRendererLocked();
         _;
     }
 
@@ -110,13 +110,13 @@ contract CapsulesToken is
 
     constructor(
         address _capsulesTypeface,
-        address _capsulesMetadata,
+        address _capsulesRenderer,
         address _creatorFeeReceiver,
         bytes3[] memory _pureColors,
         uint256 _royalty
     ) ERC721A("Capsules", "CAPS") {
         capsulesTypeface = _capsulesTypeface;
-        capsulesMetadata = _capsulesMetadata;
+        capsulesRenderer = _capsulesRenderer;
         creatorFeeReceiver = _creatorFeeReceiver;
         pureColors = _pureColors;
         emit SetPureColors(_pureColors);
@@ -135,8 +135,8 @@ contract CapsulesToken is
     /// Capsules typeface address
     address public immutable capsulesTypeface;
 
-    /// CapsulesMetadata address
-    address public capsulesMetadata;
+    /// CapsulesRenderer address
+    address public capsulesRenderer;
 
     /// Mapping of minted color to Capsule ID
     mapping(bytes3 => uint256) public tokenIdOfColor;
@@ -150,8 +150,8 @@ contract CapsulesToken is
     /// Royalty amount out of 1000
     uint256 public royalty;
 
-    /// CapsulesMetadata contract address cannot be updated if locked
-    bool public metadataLocked;
+    /// CapsulesRenderer contract address cannot be updated if locked
+    bool public rendererLocked;
 
     /// Mapping of Capsule ID to text
     mapping(uint256 => bytes4[16][8]) internal _textOf;
@@ -215,7 +215,7 @@ contract CapsulesToken is
 
         _textOf[capsuleId] = text;
 
-        emit MintCapsuleWithText(capsuleId, to, color, fontWeight, text);
+        emit MintCapsule(capsuleId, to, color);
     }
 
     /// @notice Mint a Capsule to sender.
@@ -252,7 +252,7 @@ contract CapsulesToken is
 
     /// @notice Return token URI for Capsule.
     /// @param capsuleId ID of Capsule token.
-    /// @return metadata Metadata for Capsule encoded via capsulesMetadata contract.
+    /// @return renderer Renderer for Capsule encoded via capsulesRenderer contract.
     function tokenURI(uint256 capsuleId)
         public
         view
@@ -262,7 +262,7 @@ contract CapsulesToken is
         require(_exists(capsuleId), "ERC721A: URI query for nonexistent token");
 
         return
-            ICapsulesMetadata(capsulesMetadata).tokenUri(capsuleOf(capsuleId));
+            ICapsulesRenderer(capsulesRenderer).tokenUri(capsuleOf(capsuleId));
     }
 
     /// @notice Return SVG image of Capsule.
@@ -275,7 +275,7 @@ contract CapsulesToken is
         returns (string memory)
     {
         return
-            ICapsulesMetadata(capsulesMetadata).svgOf(
+            ICapsulesRenderer(capsulesRenderer).svgOf(
                 capsuleOf(capsuleId),
                 square
             );
@@ -316,13 +316,6 @@ contract CapsulesToken is
         return false;
     }
 
-    /// @notice Check if Capsule is locked.
-    /// @param capsuleId ID of Capsule
-    /// @return true True if Capsule is locked.
-    function isLocked(uint256 capsuleId) public view returns (bool) {
-        return _locked[capsuleId];
-    }
-
     /// @notice Returns the pure color matching a specific font weight.
     /// @param fontWeight Font weight to return pure color for.
     /// @return color Color for font weight.
@@ -337,6 +330,44 @@ contract CapsulesToken is
         // 300 == pureColors[2]
         // ...
         color = pureColors[(fontWeight / 100) - 1];
+    }
+
+    function htmlSafeTextOf(uint256 capsuleId)
+        external
+        view
+        returns (string[8] memory safeText)
+    {
+        return
+            ICapsulesRenderer(capsulesRenderer).htmlSafeText(
+                _textOf[capsuleId]
+            );
+    }
+
+    function colorOf(uint256 capsuleId) external view returns (bytes3 color) {
+        color = _colorOf[capsuleId];
+    }
+
+    function textOf(uint256 capsuleId)
+        external
+        view
+        returns (bytes4[16][8] memory text)
+    {
+        text = _textOf[capsuleId];
+    }
+
+    function fontWeightOf(uint256 capsuleId)
+        external
+        view
+        returns (uint256 fontWeight)
+    {
+        fontWeight = _fontWeightOf[capsuleId];
+    }
+
+    /// @notice Check if Capsule is locked.
+    /// @param capsuleId ID of Capsule
+    /// @return _isLocked True if Capsule is locked.
+    function isLocked(uint256 capsuleId) public view returns (bool _isLocked) {
+        _isLocked = _locked[capsuleId];
     }
 
     /// @notice EIP2981 royalty standard
@@ -390,7 +421,7 @@ contract CapsulesToken is
         _textOf[capsuleId] = text;
         _fontWeightOf[capsuleId] = fontWeight;
 
-        emit EditCapsule(capsuleId, text, fontWeight);
+        emit EditCapsule(capsuleId);
 
         if (lock) _lockCapsule(capsuleId);
     }
@@ -405,24 +436,24 @@ contract CapsulesToken is
     /* ---------------------------- ADMIN FUNCTIONS ----------------------------- */
     /* -------------------------------------------------------------------------- */
 
-    /// @notice Allows the contract owner to update the capsulesMetadata contract.
-    /// @param _capsulesMetadata Address of new CapsulesMetadata contract.
-    function setCapsulesMetadata(address _capsulesMetadata)
+    /// @notice Allows the contract owner to update the capsulesRenderer contract.
+    /// @param _capsulesRenderer Address of new CapsulesRenderer contract.
+    function setCapsulesRenderer(address _capsulesRenderer)
         external
         onlyOwner
-        onlyIfMetadataUnlocked
+        onlyIfRendererUnlocked
     {
         // TODO IERC165 check interface
-        capsulesMetadata = _capsulesMetadata;
+        capsulesRenderer = _capsulesRenderer;
 
-        emit SetCapsulesMetadata(_capsulesMetadata);
+        emit SetCapsulesRenderer(_capsulesRenderer);
     }
 
-    /// @notice Allows the contract owner to permanently prevent the capsulesMetadata contract from being updated.
-    function lockMetadata() external onlyOwner onlyIfMetadataUnlocked {
-        metadataLocked = true;
+    /// @notice Allows the contract owner to permanently prevent the capsulesRenderer contract from being updated.
+    function lockRenderer() external onlyOwner onlyIfRendererUnlocked {
+        rendererLocked = true;
 
-        emit LockMetadata();
+        emit LockRenderer();
     }
 
     /// @notice Allows the owner to update creatorFeeReceiver.
@@ -488,7 +519,7 @@ contract CapsulesToken is
 
         capsuleId = _storeNewCapsuleData(color, fontWeight);
 
-        emit MintCapsule(capsuleId, to, color, fontWeight);
+        emit MintCapsule(capsuleId, to, color);
     }
 
     function _lockCapsule(uint256 capsuleId)

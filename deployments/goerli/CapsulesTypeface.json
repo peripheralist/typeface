@@ -1,5 +1,5 @@
 {
-      "address": "0x414a95398bE56348ADf62CD6f1aDD991008E7dF2", 
+      "address": "0xbFf49539cb28cae2205a5B9989756b1b5b6F51a2", 
       "abi": [
   {
     "inputs": [
@@ -58,11 +58,11 @@
       {
         "indexed": false,
         "internalType": "bytes",
-        "name": "src",
+        "name": "source",
         "type": "bytes"
       }
     ],
-    "name": "SetFontSrc",
+    "name": "SetSource",
     "type": "event"
   },
   {
@@ -89,11 +89,11 @@
       {
         "indexed": false,
         "internalType": "bytes32",
-        "name": "_hash",
+        "name": "sourceHash",
         "type": "bytes32"
       }
     ],
-    "name": "SetFontSrcHash",
+    "name": "SetSourceHash",
     "type": "event"
   },
   {
@@ -129,12 +129,12 @@
         "type": "tuple"
       }
     ],
-    "name": "fontSrc",
+    "name": "hasSource",
     "outputs": [
       {
-        "internalType": "bytes",
-        "name": "src",
-        "type": "bytes"
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -143,43 +143,12 @@
   {
     "inputs": [
       {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "weight",
-            "type": "uint256"
-          },
-          {
-            "internalType": "string",
-            "name": "style",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct Font",
-        "name": "font",
-        "type": "tuple"
-      }
-    ],
-    "name": "fontSrcHash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_hash",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes1",
+        "internalType": "bytes4",
         "name": "b",
-        "type": "bytes1"
+        "type": "bytes4"
       }
     ],
-    "name": "isAllowedByte",
+    "name": "isAllowedChar",
     "outputs": [
       {
         "internalType": "bool",
@@ -198,19 +167,6 @@
         "internalType": "string",
         "name": "",
         "type": "string"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "royaltyAddress",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -237,13 +193,75 @@
       },
       {
         "internalType": "bytes",
-        "name": "src",
+        "name": "source",
         "type": "bytes"
       }
     ],
     "name": "setFontSrc",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "weight",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "style",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct Font",
+        "name": "font",
+        "type": "tuple"
+      }
+    ],
+    "name": "sourceHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "weight",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "style",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct Font",
+        "name": "font",
+        "type": "tuple"
+      }
+    ],
+    "name": "sourceOf",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   }
 ]

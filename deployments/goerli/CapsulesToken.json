@@ -1,5 +1,5 @@
 {
-      "address": "0xb817a0d6Af15Ac1007a5f23E39eEB035428271BD", 
+      "address": "0x9284967016297378b4DC673F2227Fc88232878DD", 
       "abi": [
   {
     "inputs": [
@@ -215,12 +215,6 @@
       },
       {
         "indexed": false,
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
-      },
-      {
-        "indexed": false,
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
@@ -268,12 +262,6 @@
         "internalType": "bytes3",
         "name": "color",
         "type": "bytes3"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
       },
       {
         "indexed": false,
@@ -497,7 +485,7 @@
         "type": "uint256"
       }
     ],
-    "name": "capsuleFor",
+    "name": "capsuleOf",
     "outputs": [
       {
         "components": [
@@ -517,9 +505,9 @@
             "type": "uint256"
           },
           {
-            "internalType": "bytes16[8]",
+            "internalType": "bytes4[16][8]",
             "name": "text",
-            "type": "bytes16[8]"
+            "type": "bytes4[16][8]"
           },
           {
             "internalType": "bool",
@@ -535,25 +523,6 @@
         "internalType": "struct Capsule",
         "name": "capsule",
         "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes3",
-        "name": "",
-        "type": "bytes3"
-      }
-    ],
-    "name": "capsuleForColor",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -586,6 +555,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "colorOf",
+    "outputs": [
+      {
+        "internalType": "bytes3",
+        "name": "color",
+        "type": "bytes3"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "creatorFeeReceiver",
     "outputs": [
@@ -606,9 +594,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "bytes16[8]",
+        "internalType": "bytes4[16][8]",
         "name": "text",
-        "type": "bytes16[8]"
+        "type": "bytes4[16][8]"
       },
       {
         "internalType": "uint256",
@@ -630,6 +618,25 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "fontWeightOf",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "fontWeight",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
       }
@@ -640,6 +647,25 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "htmlSafeTextOf",
+    "outputs": [
+      {
+        "internalType": "string[8]",
+        "name": "safeText",
+        "type": "string[8]"
       }
     ],
     "stateMutability": "view",
@@ -681,7 +707,7 @@
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "_isLocked",
         "type": "bool"
       }
     ],
@@ -748,19 +774,9 @@
         "type": "bytes3"
       },
       {
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
-      },
-      {
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "lock",
-        "type": "bool"
       }
     ],
     "name": "mint",
@@ -785,11 +801,6 @@
         "internalType": "uint256",
         "name": "fontWeight",
         "type": "uint256"
-      },
-      {
-        "internalType": "bytes16[8]",
-        "name": "text",
-        "type": "bytes16[8]"
       }
     ],
     "name": "mintPureColorForFontWeight",
@@ -801,6 +812,35 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes3",
+        "name": "color",
+        "type": "bytes3"
+      },
+      {
+        "internalType": "uint256",
+        "name": "fontWeight",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes4[16][8]",
+        "name": "text",
+        "type": "bytes4[16][8]"
+      }
+    ],
+    "name": "mintWithText",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -877,6 +917,25 @@
       }
     ],
     "name": "pureColorForFontWeight",
+    "outputs": [
+      {
+        "internalType": "bytes3",
+        "name": "color",
+        "type": "bytes3"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "pureColors",
     "outputs": [
       {
         "internalType": "bytes3",
@@ -1095,6 +1154,44 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "capsuleId",
+        "type": "uint256"
+      }
+    ],
+    "name": "textOf",
+    "outputs": [
+      {
+        "internalType": "bytes4[16][8]",
+        "name": "text",
+        "type": "bytes4[16][8]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes3",
+        "name": "",
+        "type": "bytes3"
+      }
+    ],
+    "name": "tokenIdOfColor",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",

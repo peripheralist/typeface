@@ -6,9 +6,9 @@ import { ethers } from "hardhat";
 
 import { fonts } from "../fonts";
 import { reservedColors } from "../reservedColors";
-import { CapsulesMetadata, CapsulesToken } from "../typechain-types";
+import { CapsulesRenderer, CapsulesToken } from "../typechain-types";
 import { CapsulesTypeface } from "../typechain-types/CapsulesTypeface";
-import { capsulesMetadata, capsulesToken, capsulesTypeface } from "./Capsules";
+import { capsulesRenderer, capsulesToken, capsulesTypeface } from "./Capsules";
 
 export const mintPrice = ethers.utils.parseEther("0.01");
 
@@ -132,7 +132,7 @@ export async function deployCapsulesTypeface(capsulesTokenAddress: string) {
 
 export async function deployCapsulesToken(
   capsulesTypefaceAddress: string,
-  capsulesMetadataAddress: string
+  capsulesRendererAddress: string
 ) {
   const { feeReceiver, owner } = await wallets();
   const Capsules = await ethers.getContractFactory("CapsulesToken");
@@ -141,7 +141,7 @@ export async function deployCapsulesToken(
 
   const capsules = (await Capsules.deploy(
     capsulesTypefaceAddress,
-    capsulesMetadataAddress,
+    capsulesRendererAddress,
     feeReceiver.address,
     reservedColors,
     royalty
@@ -156,20 +156,20 @@ export async function deployCapsulesToken(
   return capsules;
 }
 
-export async function deployCapsulesMetadata(capsulesTypefaceAddress: string) {
-  const CapsulesMetadata = await ethers.getContractFactory("CapsulesMetadata");
+export async function deployCapsulesRenderer(capsulesTypefaceAddress: string) {
+  const CapsulesRenderer = await ethers.getContractFactory("CapsulesRenderer");
 
-  const capsulesMetadata = (await CapsulesMetadata.deploy(
+  const capsulesRenderer = (await CapsulesRenderer.deploy(
     capsulesTypefaceAddress
-  )) as CapsulesMetadata;
+  )) as CapsulesRenderer;
 
   console.log(
     indent +
-      "Deployed CapsulesMetadata " +
-      chalk.magenta(capsulesMetadata.address)
+      "Deployed CapsulesRenderer " +
+      chalk.magenta(capsulesRenderer.address)
   );
 
-  return capsulesMetadata;
+  return capsulesRenderer;
 }
 
 export const capsulesContract = (signer?: Signer) =>
@@ -185,18 +185,18 @@ export const capsulesContract = (signer?: Signer) =>
     signer ?? ethers.provider
   ) as CapsulesToken;
 
-export const capsulesMetadataContract = (signer?: Signer) =>
+export const capsulesRendererContract = (signer?: Signer) =>
   new Contract(
-    capsulesMetadata.address,
+    capsulesRenderer.address,
     JSON.parse(
       fs
         .readFileSync(
-          "./artifacts/contracts/CapsulesMetadata.sol/CapsulesMetadata.json"
+          "./artifacts/contracts/CapsulesRenderer.sol/CapsulesRenderer.json"
         )
         .toString()
     ).abi,
     signer ?? ethers.provider
-  ) as CapsulesMetadata;
+  ) as CapsulesRenderer;
 
 export const capsulesTypefaceContract = (signer?: Signer) =>
   new Contract(

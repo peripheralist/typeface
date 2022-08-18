@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./interfaces/ITypeface.sol";
 import "./interfaces/ICapsulesToken.sol";
-import "./interfaces/ICapsulesMetadata.sol";
+import "./interfaces/ICapsulesRenderer.sol";
 import "./utils/Base64.sol";
 
 struct SvgSpecs {
@@ -31,7 +31,7 @@ struct SvgSpecs {
     uint256 textAreaHeightDots;
 }
 
-contract CapsulesMetadata is Ownable, ICapsulesMetadata {
+contract CapsulesRenderer is Ownable, ICapsulesRenderer {
     /// Address of CapsulesTypeface contract
     address public immutable capsulesTypeface;
 
@@ -394,12 +394,25 @@ contract CapsulesMetadata is Ownable, ICapsulesMetadata {
         return true;
     }
 
-    /// @notice Returns html-safe version of text
-    /// @dev Iterates through bytes of each line in `text` and replaces each byte as needed to create a string that will render in html without issue. Ensures that no illegal characters or 0x00 bytes remain.
-    /// @param line Line of text to check if empty
-    /// @return safeLine text string that can be safely rendered in html.
+    /// @notice Returns html-safe version of text.
+    /// @param text Text to render safe.
+    /// @return safeText Text string array that can be safely rendered in html.
+    function htmlSafeText(bytes4[16][8] memory text)
+        external
+        pure
+        returns (string[8] memory safeText)
+    {
+        for (uint256 i; i < 8; i++) {
+            safeText[i] = htmlSafeLine(text[i]);
+        }
+    }
+
+    /// @notice Returns html-safe version of a line of text
+    /// @dev Iterates through each byte in line of text and replaces each byte as needed to create a string that will render in html without issue. Ensures that no illegal characters or 0x00 bytes remain.
+    /// @param line Line of text to render safe.
+    /// @return safeLine Text string that can be safely rendered in html.
     function htmlSafeLine(bytes4[16] memory line)
-        public
+        internal
         pure
         returns (string memory safeLine)
     {

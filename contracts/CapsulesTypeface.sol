@@ -16,7 +16,7 @@ contract CapsulesTypeface is Typeface {
         bytes32[] memory hashes,
         address _capsulesToken
     ) Typeface("Capsules") {
-        setFontSrcHash(fonts, hashes);
+        _setFontSrcHash(fonts, hashes);
 
         capsulesToken = ICapsulesToken(_capsulesToken);
     }

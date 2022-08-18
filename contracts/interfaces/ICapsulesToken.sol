@@ -20,27 +20,15 @@ interface ICapsulesToken {
     event MintCapsule(
         uint256 indexed id,
         address indexed to,
-        bytes3 indexed color,
-        uint256 fontWeight
+        bytes3 indexed color
     );
-    event MintCapsuleWithText(
-        uint256 indexed id,
-        address indexed to,
-        bytes3 indexed color,
-        uint256 fontWeight,
-        bytes4[16][8] text
-    );
-    event SetCapsulesMetadata(address _capsulesMetadata);
+    event SetCapsulesRenderer(address _capsulesRenderer);
     event SetCreatorFeeReceiver(address _address);
     event SetPureColors(bytes3[] colors);
     event SetRoyalty(uint256 royalty);
-    event LockMetadata();
+    event LockRenderer();
     event LockCapsule(uint256 capsuleId);
-    event EditCapsule(
-        uint256 indexed id,
-        bytes4[16][8] text,
-        uint256 fontWeight
-    );
+    event EditCapsule(uint256 indexed id);
     event Withdraw(address to, uint256 amount);
 
     function capsuleOf(uint256 capsuleId)
@@ -50,7 +38,28 @@ interface ICapsulesToken {
 
     function isPureColor(bytes3 color) external view returns (bool);
 
-    function isLocked(uint256 capsuleId) external view returns (bool);
+    function pureColorForFontWeight(uint256 fontWeight)
+        external
+        view
+        returns (bytes3 color);
+
+    function htmlSafeTextOf(uint256 capsuleId)
+        external
+        returns (string[8] memory safeText);
+
+    function colorOf(uint256 capsuleId) external view returns (bytes3 color);
+
+    function textOf(uint256 capsuleId)
+        external
+        view
+        returns (bytes4[16][8] memory text);
+
+    function fontWeightOf(uint256 capsuleId)
+        external
+        view
+        returns (uint256 fontWeight);
+
+    function isLocked(uint256 capsuleId) external view returns (bool locked);
 
     function svgOf(uint256 capsuleId, bool square)
         external
@@ -85,7 +94,7 @@ interface ICapsulesToken {
 
     function burn(uint256 capsuleId) external;
 
-    function setCapsulesMetadata(address _capsulesMetadata) external;
+    function setCapsulesRenderer(address _capsulesRenderer) external;
 
     function setCreatorFeeReceiver(address _creatorFeeReceiver) external;
 

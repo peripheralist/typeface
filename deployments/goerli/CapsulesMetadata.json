@@ -1,5 +1,5 @@
 {
-      "address": "0x1dBC461B3d97c26863E8e7cCEFcd82C93bfE0A06", 
+      "address": "0x018447959d18598003D7cB398DfB523b2707828B", 
       "abi": [
   {
     "inputs": [
@@ -45,6 +45,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes4[16][8]",
+        "name": "text",
+        "type": "bytes4[16][8]"
+      }
+    ],
+    "name": "htmlSafeText",
+    "outputs": [
+      {
+        "internalType": "string[8]",
+        "name": "safeText",
+        "type": "string[8]"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "owner",
     "outputs": [
@@ -84,9 +103,9 @@
             "type": "uint256"
           },
           {
-            "internalType": "bytes16[8]",
+            "internalType": "bytes4[16][8]",
             "name": "text",
-            "type": "bytes16[8]"
+            "type": "bytes4[16][8]"
           },
           {
             "internalType": "bool",
@@ -140,9 +159,9 @@
             "type": "uint256"
           },
           {
-            "internalType": "bytes16[8]",
+            "internalType": "bytes4[16][8]",
             "name": "text",
-            "type": "bytes16[8]"
+            "type": "bytes4[16][8]"
           },
           {
             "internalType": "bool",
