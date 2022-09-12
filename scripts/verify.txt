@@ -1,1 +1,0 @@
-npx hardhat verify --network goerli --constructor-args deployments/goerli/CapsulesTypeface.arguments.js 0xA1cafe683Ac8C162A8255D5ca8ADC637Ac6151C1
