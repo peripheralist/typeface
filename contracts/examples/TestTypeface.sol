@@ -24,8 +24,7 @@ contract TestTypeface is Typeface {
     }
 
     function supportsCodePoint(bytes3 cp) external pure returns (bool) {
-        // ASCII range
-        return cp >= 0x000020 && cp <= 0x00007E;
+        return cp >= 0x000020 && cp <= 0x00007A;
     }
 
     function _beforeSetSource(Font calldata, bytes calldata) internal override {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "./interfaces/ITypeface.sol";
 
 /**
@@ -24,7 +25,7 @@ abstract contract Typeface is ITypeface {
     /// @notice Mapping of weight => style => keccack256 hash of font source data as bytes.
     mapping(uint256 => mapping(string => bytes32)) private _sourceHash;
 
-    /// @notice Mapping of weight => style => true if font source has been stored. 
+    /// @notice Mapping of weight => style => true if font source has been stored.
     /// @dev This serves as a gas-efficient way to check if a font source has been stored without getting the entire source data.
     mapping(uint256 => mapping(string => bool)) private _hasSource;
 

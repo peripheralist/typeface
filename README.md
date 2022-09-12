@@ -1,6 +1,6 @@
 # Typeface Contract
 
-The Typeface contract allows storing and retrieving font source data on-chain—base64 or otherwise encoded. 
+The Typeface contract allows storing and retrieving font source data (base-64 or otherwise encoded) on-chain.
 
 ## Storing font sources
 
@@ -10,4 +10,4 @@ Fonts are identified by the Font struct, which specifies `style` and `weight` pr
 
 ## Supported characters
 
-Two functions allow specifying which characters are supported by the stored typeface. ASCII characters can be encoded in a single byte, so typefaces using only this charset can rely on the `isSupportedByte(bytes1)` function to specify if a character is supported. For charsets including more complex characters that require more than 1 byte to encode, `isSupportedBytes4(bytes4)` should be used.
+The function `supportsCodePoint(bytes3)` allows specifying which characters are supported by the stored typeface. All possible unicodes can be encoded using no more than 3 bytes.
