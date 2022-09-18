@@ -4,9 +4,10 @@ import { ethers } from "hardhat";
 import { FONTS } from "../fonts";
 
 export async function wallets() {
-  const [deployer, rando] = await ethers.getSigners();
+  const [deployer, donationAddress, operator, rando] =
+    await ethers.getSigners();
 
-  return { deployer, rando };
+  return { deployer, donationAddress, operator, rando };
 }
 
 export type Font = {

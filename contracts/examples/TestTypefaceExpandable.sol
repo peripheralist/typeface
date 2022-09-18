@@ -8,9 +8,9 @@
 
 pragma solidity ^0.8.0;
 
-import "../Typeface.sol";
+import "../TypefaceExpandable.sol";
 
-contract TestTypeface is Typeface {
+contract TestTypefaceExpandable is TypefaceExpandable {
     /// For testing
     event BeforeSetSource();
 
@@ -20,8 +20,9 @@ contract TestTypeface is Typeface {
     constructor(
         Font[] memory fonts,
         bytes32[] memory hashes,
-        address donationAddress
-    ) Typeface("TestTypeface", donationAddress) {
+        address donationAddress,
+        address operator
+    ) TypefaceExpandable("TestTypeface", donationAddress, operator) {
         _setSourceHashes(fonts, hashes);
     }
 

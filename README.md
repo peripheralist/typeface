@@ -11,3 +11,7 @@ Fonts are identified by the Font struct, which specifies `style` and `weight` pr
 ## Supported characters
 
 The function `supportsCodePoint(bytes3)` allows specifying which characters are supported by the stored typeface. All possible unicodes can be encoded using no more than 3 bytes.
+
+## TypefaceExpandable
+
+The TypefaceExpandable contract allows font hashes to be added or modified after deployment by an operator address. Hashes can only be modified until a source has been stored for that font.

@@ -23,10 +23,13 @@ export const typefaceContract = (signer?: Signer) =>
   ) as Typeface;
 
 export async function deployTypeface() {
+  const { donationAddress } = await wallets();
+
   const TestTypeface = await ethers.getContractFactory("TestTypeface");
   const testTypeface = (await TestTypeface.deploy(
     fonts,
-    fontHashes
+    fontHashes,
+    donationAddress.address
   )) as Typeface;
 
   console.log("Deployed TestTypeface " + chalk.magenta(testTypeface.address));
@@ -130,7 +133,7 @@ describe("TestTypeface", async () => {
 
     return expect(
       typefaceContract(rando).setSource(fonts[0], fontSources[0])
-    ).to.be.revertedWith("Typeface: font source already exists");
+    ).to.be.revertedWith("Typeface: Source already exists");
   });
 
   it("Should return correct font sources", async () => {
