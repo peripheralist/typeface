@@ -32,7 +32,7 @@ abstract contract TypefaceExpandable is Typeface, ITypefaceExpandable {
     }
 
     /// Address with permission to add or modify font hashes, as long as no source has been stored for that font.
-    address private _operator;
+    address internal _operator;
 
     /// @notice Allows operator to set new font hashes.
     /// @dev Equal number of fonts and hashes must be provided.
