@@ -38,14 +38,15 @@ abstract contract TypefaceExpandable is Typeface, ITypefaceExpandable {
     /// @dev Equal number of fonts and hashes must be provided.
     /// @param fonts Array of fonts to set hashes for.
     /// @param hashes Array of hashes to set for fonts.
-    function setSourceHashes(
-        Font[] calldata fonts,
-        bytes32[] calldata hashes
-    ) external onlyOperator onlyUnstoredFonts(fonts) {
+    function setSourceHashes(Font[] calldata fonts, bytes32[] calldata hashes)
+        external
+        onlyOperator
+        onlyUnstoredFonts(fonts)
+    {
         _setSourceHashes(fonts, hashes);
     }
 
-    /// @notice Returns operator of contract.
+    /// @notice Returns operator of contract. Operator has permission to add or modify font hashes, as long as no source has been stored for that font.
     /// @return operator Operator address.
     function operator() external view returns (address) {
         return _operator;
