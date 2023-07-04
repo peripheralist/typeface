@@ -51,12 +51,9 @@ abstract contract Typeface is ITypeface, ERC165 {
     /// @notice Return source bytes for font.
     /// @param font Font to check source of.
     /// @return source Font source data as bytes.
-    function sourceOf(Font memory font)
-        public
-        view
-        virtual
-        returns (bytes memory)
-    {
+    function sourceOf(
+        Font memory font
+    ) public view virtual returns (bytes memory) {
         return _source[font.style][font.weight];
     }
 
@@ -70,12 +67,9 @@ abstract contract Typeface is ITypeface, ERC165 {
     /// @notice Return hash of source bytes for font.
     /// @param font Font to return source hash of.
     /// @return sourceHash Hash of source for font.
-    function sourceHash(Font memory font)
-        public
-        view
-        virtual
-        returns (bytes32)
-    {
+    function sourceHash(
+        Font memory font
+    ) public view virtual returns (bytes32) {
         return _sourceHash[font.style][font.weight];
     }
 
@@ -87,7 +81,9 @@ abstract contract Typeface is ITypeface, ERC165 {
 
     /// @notice Allows the donation address to set a new donation address.
     /// @param __donationAddress New donation address.
-    function setDonationAddress(address __donationAddress) external {
+    function setDonationAddress(
+        address __donationAddress
+    ) external onlyDonationAddress {
         _setDonationAddress(__donationAddress);
     }
 
@@ -123,9 +119,10 @@ abstract contract Typeface is ITypeface, ERC165 {
     /// @dev Length of fonts and hashes arrays must be equal. Each hash from hashes array will be set for the font with matching index in the fonts array.
     /// @param fonts Array of fonts to set hashes for.
     /// @param hashes Array of hashes to set for fonts.
-    function _setSourceHashes(Font[] memory fonts, bytes32[] memory hashes)
-        internal
-    {
+    function _setSourceHashes(
+        Font[] memory fonts,
+        bytes32[] memory hashes
+    ) internal {
         require(
             fonts.length == hashes.length,
             "Typeface: Unequal number of fonts and hashes"
@@ -144,27 +141,23 @@ abstract contract Typeface is ITypeface, ERC165 {
     }
 
     /// @dev See {IERC165-supportsInterface}.
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(ERC165)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165) returns (bool) {
         return
             interfaceId == type(ITypeface).interfaceId ||
             super.supportsInterface(interfaceId);
     }
 
     /// @notice Function called before setSource() is called.
-    function _beforeSetSource(Font calldata font, bytes calldata src)
-        internal
-        virtual
-    {}
+    function _beforeSetSource(
+        Font calldata font,
+        bytes calldata src
+    ) internal virtual {}
 
     /// @notice Function called after setSource() is called.
-    function _afterSetSource(Font calldata font, bytes calldata src)
-        internal
-        virtual
-    {}
+    function _afterSetSource(
+        Font calldata font,
+        bytes calldata src
+    ) internal virtual {}
 }
